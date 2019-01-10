@@ -1,0 +1,6 @@
+testdata/
+graphData/
+.idea/
+*.pyc
+.ipynb_checkpoints/
+
