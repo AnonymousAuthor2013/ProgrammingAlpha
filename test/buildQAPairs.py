@@ -86,6 +86,7 @@ def generateQAPairs():
     QACollection.create_index("Id")
 
 if __name__ == '__main__':
+    import programmingalpha
     #settings
     parser = argparse.ArgumentParser()
     parser.add_argument('--mongodb', type=str, help='mongodb host, e.g. mongodb://10.1.1.9:27017/',default='mongodb://10.1.1.9:27017/')
@@ -100,8 +101,8 @@ if __name__ == '__main__':
 
     initPool()
 
-    m_tag=["<keras>","<tensorflow>","<caffe>","<pytorch>","<artificial-intelligence>","<nlp>","<computer-vision>",
-           "<deep-learning>","<neural-network>","<machine-learning>","<reinforcement-learning>","<scikit-learn>"]
+    m_tag=programmingalpha.loadConfig(programmingalpha.ConfigPath+"TagSeeds.json")["Tags"]
+
 
     #m_tag=frozenset(m_tag)
 

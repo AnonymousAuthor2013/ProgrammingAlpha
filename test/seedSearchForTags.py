@@ -3,7 +3,7 @@ from programmingalpha.DataSet.DBLoader import MongoDBConnector
 from programmingalpha.Utility.CorrelationAnalysis import Apriori,stepAprioriSearch,mineFPTree,FPTree
 import numpy as np
 import programmingalpha
-import json
+import json,pickle
 
 #for pair tags indexer 0/1
 otherTagIndex=lambda tag: 1 if tag[0] in m_tag else 0 #find the otehr tag not in m_tag
@@ -11,10 +11,7 @@ seedTagIndex=lambda tag :0 if tag[0] in m_tag else 1 #find tag that is in m_tag
 
 
 class TagCounter(object):
-    def __init__(self,mongodb:MongoDBConnector,dbName:str):
-        self.mongoDB=mongodb
-        self.mongoDB.useDB(dbName)
-        self.transactions=[]
+    def loadTransactionData(self):
         questions=self.mongoDB.questions.find().batch_size(args.batch_size)
 
         for q in questions:
@@ -28,6 +25,11 @@ class TagCounter(object):
         print("scanned %d questions"%(len(self.transactions)))
 
         self.transactions=list(map(frozenset,self.transactions))
+
+    def __init__(self,mongodb:MongoDBConnector,dbName:str):
+        self.mongoDB=mongodb
+        self.mongoDB.useDB(dbName)
+        self.transactions=[]
 
         self.ItemSeeds=set()
 
@@ -135,16 +137,25 @@ class TagCounter(object):
 
         return counter
 
+def getFrequentItems(load=True):
+    if not load:
+        tagCounter.loadTransactionData()
+        frequentItems=tagCounter.getRelatedTagsViaFPTG()
+        with open(programmingalpha.DataPath+"frequentItems.pickle","wb") as f:
+            pickle.dump(frequentItems,f)
+    else:
+        with open(programmingalpha.DataPath+"frequentItems.pickle","rb") as f:
+            frequentItems=pickle.load(f)
+
+    return frequentItems
+
+
 if __name__ == '__main__':
 
     #settings
     parser = argparse.ArgumentParser()
     parser.add_argument('--mongodb', type=str, help='mongodb host, e.g. mongodb://10.1.1.9:27017/',default='mongodb://10.1.1.9:27017/')
     parser.add_argument('--batch_size', type=str, default=10000)
-    parser.add_argument('--collection', type=str, default="QAPForAI")
-
-    parser.add_argument('--num_workers', type=int, default=20,
-                        help='Number of threads (for tokenizing, etc)')
 
     args = parser.parse_args()
 
@@ -166,21 +177,26 @@ if __name__ == '__main__':
     tagCounter.ItemSeeds.update(m_tag)
 
     #mine fp tree
-    frequentItems=tagCounter.getRelatedTagsViaFPTG()
-    with open(programmingalpha.DataPath+"frequentItems.json","w") as f:
-        json.dump(frequentItems,f)
+    frequentItems=getFrequentItems()
 
     print("get %d frequent patterns"%len(frequentItems),"below are the frequent patterns of seeds")
+
+    '''
+    seedCounter=tagCounter.getTagCounter(m_tag)
     for i in range(len(m_tag)):
         for j in range(1,len(m_tag)):
             tag1,tag2=m_tag[i],m_tag[j]
             tagP=frozenset({tag1,tag2})
             tag1=frozenset({tag1})
             tag2=frozenset({tag2})
+            sup1=frequentItems[tag1] if tag1 in frequentItems else seedCounter[m_tag[i]]
+            sup2=frequentItems[tag2] if tag2 in frequentItems else seedCounter[m_tag[j]]
             comsup=frequentItems[tagP] if tagP in frequentItems else 0
-            sup1=comsup/frequentItems[tag1]
-            sup2=comsup/frequentItems[tag2]
-            print(tag1,tag2,tagP,frequentItems[tag1],frequentItems[tag2],frequentItems[tagP],sup1,sup2)
+            conf1=comsup/sup1
+            conf2=comsup/sup2
+            print(tag1,tag2,tagP,sup1,conf2,comsup,conf1,conf2)
+    '''
+
     print("+"*60)
 
     confData=tagCounter.getConfidenceData(frequentItems)
@@ -193,20 +209,4 @@ if __name__ == '__main__':
         if confidence[0]>0.2 or confidence[1]>0.2:
             print(k, confidence,frequentItems[k])
     print("-"*60)
-
-    pariTags=list(map(list,confData.keys()))
-    relatedTags=map(lambda x:x[otherTagIndex(x)],pariTags)
-    relatedTags=set(relatedTags)
-    relatedTags.update(m_tag)
-    print("size of related Tags are=>",len(relatedTags))
-    counter=tagCounter.getTagCounter(relatedTags)
-
-    print("{} pair of tags counter info".format(len(pariTags)))
-    for k in pariTags:
-        try:
-            print(k[0],k[1],counter[k[0]],counter[k[1]])
-        except Exception or KeyError as e:
-            print(e.args,"error triggered",k)
-            #break
-
 
