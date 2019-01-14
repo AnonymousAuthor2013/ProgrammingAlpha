@@ -1,4 +1,4 @@
-from programmingalpha.Utility.CorrelationAnalysis import Aprio
+from programmingalpha.Utility.CorrelationAnalysis import Apriori,stepAprioriSearch
 
 def loadData():
     data=[[1,3,4],[2,3,5],[1,2,3,5],[2,5]]
@@ -8,7 +8,7 @@ def loadData():
 
 dataSet = loadData()
 
-apriori=Aprio()
+apriori=Apriori()
 apriori.minConfidence=0.8
 apriori.minSupport=0.5
 apriori.maxK=2
@@ -20,17 +20,14 @@ print(b)
 itemSeed=[{1},{3},{4}]
 itemSeed=list(map(frozenset,itemSeed))
 print("=="*20)
-results=apriori.stepSearch(dataSet,itemSeed,2)
+results=stepAprioriSearch(apriori,dataSet,itemSeed)
 if results:
-    a,b,c=results
-    print(a)
-    print(b)
-    print(c)
+    print(len(results.keys()),results.keys())
+    print(results)
 
     print()
-    for i in a:
-        print("*"*20)
+    for item in results.keys():
+        print("*"*20,item,itemSeed,item.intersection(itemSeed))
 
-        for s in itemSeed:
-            if s.issubset(i):
-                print(i,"<=",s,b[i]/b[s])
+        if Apriori.containsAny(item,itemSeed):
+            print(item,"<=",results[item])

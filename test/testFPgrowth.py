@@ -43,8 +43,8 @@ def testPaths():
 def testfreqmine():
     fqitems=mineFPTree(3,fpgrowth)
 
-    for items in fqitems:
-        print(items)
+    for items,c in fqitems.items():
+        print(c,items)
 
 
 #showInfo()
@@ -52,3 +52,4 @@ def testfreqmine():
 #testPaths()
 
 testfreqmine()
+

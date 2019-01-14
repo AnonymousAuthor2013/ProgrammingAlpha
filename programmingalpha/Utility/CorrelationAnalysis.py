@@ -2,11 +2,32 @@ import numpy as np
 import time
 import collections
 
-class Aprio(object):
+class CorrelationMiner(object):
+
+    extraCases=set()
+
     def __init__(self):
-        self.maxK=np.inf
-        self.minSupport=0.5
+        self.minSupport=1000
         self.minConfidence=0.8
+
+    @staticmethod
+    def containsAny(mySet,conatainer):
+        "judge if any of the container element is appeared as a subset of mySet or an element of mySet"
+
+        for data in conatainer:
+            if type(data) in [list,set,frozenset] and len(set(data).intersection(mySet))>0:
+                return True
+            elif data in mySet:
+                return True
+
+        return False
+
+
+class Apriori(CorrelationMiner):
+    def __init__(self):
+        CorrelationMiner.__init__(self)
+        self.maxK=np.inf
+
 
     def initSingleItem(self,dataSet):
         c1 = []
@@ -17,7 +38,7 @@ class Aprio(object):
 
         return list(map(frozenset,c1))
 
-    def scanDataset(self,D,Ck,exludeSet=set()):
+    def scanDataset(self,D,Ck):
         #returns next K set and support count data
 
         supportCount = {}
@@ -41,8 +62,8 @@ class Aprio(object):
         numItems = float(len(D))
 
         for key in supportCount:
-            support = supportCount[key] / numItems
-            if support >= self.minSupport or self.__containsAny(key,exludeSet):
+            support = supportCount[key]
+            if support >= self.minSupport or self.containsAny(key,self.extraCases):
                 retList.append(key)
 
         return retList,supportCount
@@ -96,71 +117,38 @@ class Aprio(object):
             k += 1
         return L,supportData
 
-    def stepSearch(self,dataSet,itemSeed,k):
+
+def stepAprioriSearch(apriori:Apriori,dataSet,itemSeed):
 
         t0=time.time()
 
-        C1=self.initSingleItem(dataSet)
+        C1=apriori.initSingleItem(dataSet)
 
         C1=set(itemSeed).union(C1)
         C1=list(C1)
 
         print("searching with %d candidates, %d seeds"%(len(C1),len(itemSeed)))
 
-        L1, supportData=self.scanDataset(dataSet,C1,exludeSet=itemSeed)
+        L1, supportData=apriori.scanDataset(dataSet,C1)
 
         print("generate data from related %d L1 (cost=%ds)"%(len(L1),time.time()-t0))
 
-        C2=self.aprioriGen(L1,k)
+        C2=apriori.aprioriGen(L1,2)
 
         print("generated %d candidates for L2 (cost=%ds)"%(len(C2),time.time()-t0))
 
         if len(C2)<1:
             return None
 
-        L2,supK=self.scanDataset(dataSet,C2,exludeSet=itemSeed)
+        L2,sup2=apriori.scanDataset(dataSet,C2)
 
         print("get %d result records (cost=%ds)"%(len(L2),time.time()-t0))
 
-        L=[]
-        supData={}
+        supportData.update(sup2)
 
-        for lv in L2:
-            for seed in itemSeed:
-                if len(seed.intersection(lv))>0:
-                    L.append(lv)
-                    supData[lv]=supK[lv]
-                    #break
+        frequentItems=supportData
 
-        for lv in itemSeed:
-            supData[lv]=supportData[lv]
-
-        if len(L)==0:
-            return None
-
-
-        supportData=supData
-        confData={}
-
-        for related in L2:
-            for seed in itemSeed:
-                if seed.issubset(related):
-                    com,sup=supportData[related],supportData[seed]
-                    confData[related]=com/sup if sup!=0 else 0
-
-
-
-        return L2, supportData,confData
-
-    @staticmethod
-    def __containsAny(mySet,conatainer):
-        "judge if any of the container element is appeared as a subset of mySet"
-
-        for data in conatainer:
-            if len(set(data).intersection(mySet))>0:
-                return True
-        return False
-
+        return frequentItems
 
 ########Fp_growth Tree
 
@@ -186,11 +174,12 @@ class TreeNode(object):
             for child in self.children.values():
                 child.showSubTree(depth+1)
 
-class FPTree(object):
+class FPTree(CorrelationMiner):
+
     def __init__(self):
+        CorrelationMiner.__init__(self)
         self.headerTable={}
         self.tree=TreeNode("ROOT-NULL",0,None)
-
 
     def updateHeaderTable(self,header:TreeNode,targetNode:TreeNode):
         while header.nextLink is not None:
@@ -217,11 +206,10 @@ class FPTree(object):
             root=root.children[item]
             ptr+=1
 
-    def createFPTree(self,dataSet,minSup,exludeSet=set()):
+    def createFPTree(self,dataSet,minSup):
         #print("building fp tree using")
         #for d,c in dataSet.items():
         #    print(c,d)
-
 
         #data loader
 
@@ -234,13 +222,16 @@ class FPTree(object):
 
         item_to_Remove=[]
         for item,count in self.headerTable.items():
-            if count[0]<minSup or item in exludeSet:
+            if count[0]<minSup and item not in self.extraCases:
+                #print("do not remove as it is extra-keeped",item,"{}:({})".format(len(self.extraCases),self.extraCases))
                 item_to_Remove.append(item)
 
-        if len(item_to_Remove)==len(self.headerTable.keys()):
-            print("all items are not frequent")
+        #if len(item_to_Remove)==len(self.headerTable.keys()):
+            #print("all items are not frequent")
 
         for item in item_to_Remove:
+            if item in self.extraCases:
+                print("remove", item)
             del self.headerTable[item]
 
         if len(self.headerTable)==0:
@@ -270,7 +261,6 @@ class FPTree(object):
 
                 #print("current tree"+"="*20)
                 #root.showSubTree(0)
-
 
         #print("finished builing fp-tree")
 
@@ -305,7 +295,7 @@ class FPTree(object):
 def mineFPTree(minSup,fpTree:FPTree,maxKlen=np.inf):
 
     prefix=set()
-    frequentItemsList=[]
+    frequentItemsList={}
 
     mineTasks=collections.deque()
     mineTasks.append([fpTree,prefix])
@@ -322,7 +312,7 @@ def mineFPTree(minSup,fpTree:FPTree,maxKlen=np.inf):
             #print("from ",basePat)
             newFreqSet=prefix.copy()
             newFreqSet.add(basePat)
-            frequentItemsList.append(newFreqSet)
+            frequentItemsList[frozenset(newFreqSet)]=headersT[basePat][0]
             condBases=fpTree.findPrefixBases(basePat)
 
             if len(condBases)>0 and len(newFreqSet)<maxKlen:
