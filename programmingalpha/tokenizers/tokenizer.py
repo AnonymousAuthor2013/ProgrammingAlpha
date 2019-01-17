@@ -23,9 +23,14 @@ class Tokens(object):
         self.annotators = annotators
         self.opts = opts or {}
 
+
     def __len__(self):
         """The number of tokens."""
         return len(self.data)
+
+
+    def getIterator(self):
+        return iter(self.data)
 
     def slice(self, i=None, j=None):
         """Return a view of the list of tokens from [i, j)."""
@@ -137,3 +142,4 @@ class Tokenizer(object):
 
     def __del__(self):
         self.shutdown()
+

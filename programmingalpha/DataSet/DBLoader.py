@@ -1,8 +1,13 @@
 import pymongo
+from urllib.parse import quote_plus
+from programmingalpha.DataSet import *
 
 class MongoDBConnector(object):
 
-    def __init__(self,url):
+    def __init__(self,host,port,user,passwd):
+        url = "mongodb://%s:%s@%s:%d" % (
+                quote_plus(user), quote_plus(passwd), host,port)
+
         self.client=pymongo.MongoClient(url)
         self.stackdb=self.client["stackoverflow"]
 
@@ -48,7 +53,8 @@ class MongoDBConnector(object):
             results=self.questions.find(query).batch_size(batch_size)
 
         for x in results:
-            if x["AcceptedAnswerId"]=='':
+            #print(x)
+            if 'AcceptedAnswerId' not in x or x["AcceptedAnswerId"]=='':
                 continue
 
             batch.append(x)
@@ -63,3 +69,7 @@ class MongoDBConnector(object):
         ans=self.answers.find_one({"ParentId":question_id})
         return ans
 
+def connectToDB():
+    dbauth=MongodbAuth
+    db=MongoDBConnector(dbauth["host"],dbauth["port"],dbauth["user"],dbauth["passwd"])
+    return db

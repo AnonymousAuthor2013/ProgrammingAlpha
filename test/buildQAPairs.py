@@ -1,15 +1,16 @@
 from tqdm import tqdm
 import argparse
-from programmingalpha.DataSet.DBLoader import MongoDBConnector
+from programmingalpha.DataSet.DBLoader import MongoDBConnector,connectToDB
 from multiprocessing.dummy import Pool as ThreadPool
 from programmingalpha.Utility.DataGenerator import batchGenerator
 ####################data handler###################
 
 
-def initPool():
+def initPool(dbName):
     global db
 
-    db=MongoDBConnector(args.mongodb)
+    db=connectToDB()
+    db.useDB(dbName)
 
 def constructQA(q):
 
@@ -47,6 +48,7 @@ def generateQAPairs():
         print("create {} and insert qa pair data with batch size={}".format(collection_name,batch_size))
         QACollection=db.stackdb.create_collection(collection_name)
         currentIds=set()
+
 
     query={"Tags":{"$in":m_tag}}
 
@@ -89,7 +91,6 @@ if __name__ == '__main__':
     import programmingalpha
     #settings
     parser = argparse.ArgumentParser()
-    parser.add_argument('--mongodb', type=str, help='mongodb host, e.g. mongodb://10.1.1.9:27017/',default='mongodb://10.1.1.9:27017/')
     parser.add_argument('--batch_size', type=str, default=100)
     parser.add_argument('--collection', type=str, default="QAPForAI")
 
@@ -100,8 +101,13 @@ if __name__ == '__main__':
 
 
     initPool()
+    if db.stackdb.name!='stackoverflow':
+        m_tag=[]
+        for tag in db.tags.find():
+            m_tag.append('<{}>'.format(tag["TagName"]))
 
-    m_tag=programmingalpha.loadConfig(programmingalpha.ConfigPath+"TagSeeds.json")["Tags"]
+    else:
+        m_tag=programmingalpha.loadConfig(programmingalpha.ConfigPath+"TagSeeds.json")["Tags"]
 
 
     #m_tag=frozenset(m_tag)
@@ -112,7 +118,7 @@ if __name__ == '__main__':
     num_workers=args.num_workers
     collection_name=args.collection
 
-    initPool()
+    initPool('stackoverflow')
 
     generateQAPairs()
 
