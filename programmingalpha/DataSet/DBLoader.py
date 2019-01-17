@@ -10,25 +10,39 @@ class MongoDBConnector(object):
 
         self.client=pymongo.MongoClient(url)
         self.stackdb=self.client["stackoverflow"]
+        self.initData()
 
+
+    def initData(self):
         self.questions=self.stackdb["questions"]
         self.answers=self.stackdb["answers"]
         self.tags=self.stackdb["tags"]
         self.postlinks=self.stackdb["postlinks"]
-
 
     def useDB(self,dbName):
         if dbName is None or dbName not in self.client.list_database_names():
             return False
 
         self.stackdb=self.client[dbName]
-
-        self.questions=self.stackdb["questions"]
-        self.answers=self.stackdb["answers"]
-        self.tags=self.stackdb["tags"]
-        self.postlinks=self.stackdb["postlinks"]
+        self.initData()
 
         return True
+
+    def close(self):
+        self.client.close()
+
+    #for doc retrival interface
+    def setDocCollection(self,collectionName):
+        self.docs=self.stackdb[collectionName]
+    def get_doc_text(self,doc_id):
+        doc_json=self.docs.find_one({"Id":doc_id})
+        return 'Title=>\n{}\n Body=>\n{}'.format(doc_json["question_title"],doc_json["question_body"])
+    def get_doc_ids(self):
+        doc_ids=[]
+        for doc in self.docs.find():
+            doc_ids.append(doc["Id"])
+        return doc_ids
+
 
     def getPopTags(self,ratio=0.1,need_num=2000):
         all_tags=self.tags.find().sort("Count",pymongo.DESCENDING)

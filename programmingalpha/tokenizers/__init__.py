@@ -18,7 +18,7 @@ def set_default(key, value):
 
 
 from .corenlp_tokenizer import CoreNLPTokenizer
-
+from .bert_tokenizer import BertTokenizer
 # Spacy is optional
 try:
     from .spacy_tokenizer import SpacyTokenizer
@@ -31,7 +31,8 @@ def get_class(name):
         return SpacyTokenizer
     if name == 'corenlp':
         return CoreNLPTokenizer
-
+    if name=='bert':
+        return BertTokenizer
     raise RuntimeError('Invalid tokenizer: %s' % name)
 
 

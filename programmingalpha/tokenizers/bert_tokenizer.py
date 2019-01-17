@@ -25,6 +25,7 @@ import logging
 from .tokenizer import Tokenizer,Tokens
 from .spacy_tokenizer import SpacyTokenizer
 from .corenlp_tokenizer import CoreNLPTokenizer
+import programmingalpha
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,9 @@ def whitespace_tokenize(text):
 class BertTokenizer(Tokenizer):
     """Runs end-to-end tokenization: punctuation splitting + wordpiece"""
 
-    def __init__(self, vocab_file, do_lower_case=True, max_len=None):
+    def __init__(self, vocab_file=None, do_lower_case=True, max_len=None):
+        if vocab_file is None:
+            vocab_file=programmingalpha.BertBasePath+VOCAB_NAME
         if not os.path.isfile(vocab_file):
             raise ValueError(
                 "Can't find a vocabulary file at path '{}'. To load the vocabulary from a Google pretrained "
