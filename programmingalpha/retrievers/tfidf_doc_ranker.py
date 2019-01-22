@@ -16,7 +16,6 @@ import programmingalpha
 from . import utils
 from . import getTF_IDF_Data
 from .. import tokenizers
-from programmingalpha.tokenizers.bert_tokenizer import BertTokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +43,8 @@ class TfidfDocRanker(object):
         self.doc_dict = metadata['doc_dict']
         self.num_docs = len(self.doc_dict[0])
         self.strict = strict
+        #print("ranker",np.shape(self.doc_mat))
+
 
     def get_doc_index(self, doc_id):
         """Convert doc_id --> doc_index"""
@@ -58,16 +59,18 @@ class TfidfDocRanker(object):
         in tfidf weighted word vector space.
         """
         spvec = self.text2spvec(query)
-        res = spvec * self.doc_mat
+        res = (spvec * self.doc_mat)
 
         if len(res.data) <= k:
             o_sort = np.argsort(-res.data)
         else:
             o = np.argpartition(-res.data, k)[0:k]
             o_sort = o[np.argsort(-res.data[o])]
+        #print("fetch",np.shape(spvec),np.shape(self.doc_mat),np.shape(res))
 
         doc_scores = res.data[o_sort]
         doc_ids = [self.get_doc_id(i) for i in res.indices[o_sort]]
+
         return doc_ids, doc_scores
 
     def batch_closest_docs(self, queries, k=1, num_workers=None):

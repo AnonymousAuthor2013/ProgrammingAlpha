@@ -2,9 +2,9 @@ from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
 import json
 
 if __name__ == '__main__':
-    from programmingalpha.DataSet.DBLoader import MongoDBConnector
+    from programmingalpha.DataSet.DBLoader import MongoStackExchange
 
-    db=MongoDBConnector("mongodb://10.1.1.9")
+    db=MongoStackExchange("mongodb://10.1.1.9")
     AIQA=db.stackdb["QAPForAI"]
 
     data=[]

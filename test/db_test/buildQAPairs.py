@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import argparse
-from programmingalpha.DataSet.DBLoader import MongoDBConnector,connectToDB
+from programmingalpha.DataSet.DBLoader import MongoStackExchange,connectToMongoDB
 from multiprocessing.dummy import Pool as ThreadPool
 from programmingalpha.Utility.DataGenerator import batchGenerator
 ####################data handler###################
@@ -9,7 +9,7 @@ from programmingalpha.Utility.DataGenerator import batchGenerator
 def initPool(dbName):
     global db
 
-    db=connectToDB()
+    db=connectToMongoDB()
     db.useDB(dbName)
 
 def constructQA(q):

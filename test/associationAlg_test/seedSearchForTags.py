@@ -1,5 +1,5 @@
 import argparse
-from programmingalpha.DataSet.DBLoader import MongoDBConnector
+from programmingalpha.DataSet.DBLoader import MongoStackExchange
 from programmingalpha.Utility.CorrelationAnalysis import Apriori,stepAprioriSearch,mineFPTree,FPTree
 import numpy as np
 import programmingalpha
@@ -26,7 +26,7 @@ class TagCounter(object):
 
         self.transactions=list(map(frozenset,self.transactions))
 
-    def __init__(self,mongodb:MongoDBConnector,dbName:str):
+    def __init__(self, mongodb:MongoStackExchange, dbName:str):
         self.mongoDB=mongodb
         self.mongoDB.useDB(dbName)
         self.transactions=[]
@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     tuneMaxClipNum=None
 
-    mongodb=MongoDBConnector(args.mongodb)
+    mongodb=MongoStackExchange(args.mongodb)
     dbname="stackoverflow"
     tagCounter=TagCounter(mongodb,dbname)
     tagCounter.ItemSeeds.update(m_tag)

@@ -2,12 +2,12 @@ import networkx as nx
 import pickle
 import collections
 import argparse
-from programmingalpha.DataSet.DBLoader import MongoDBConnector,connectToDB
+from programmingalpha.DataSet.DBLoader import MongoStackExchange,connectToMongoDB
 import programmingalpha
 import numpy as np
 
 def createLinkDict(dbName,m_tags=None):
-    db=connectToDB()
+    db=connectToMongoDB()
     db.useDB(dbName)
     questions=db.questions
 
@@ -153,7 +153,7 @@ def constructLabledData(dbName):
     dataSource={"duplicateLink","directLink","transitiveLink","unrelatedLink"}
     labelDict={"duplicateLink":1,"directLink":0.7,"transitiveLink":0.5,"unrelatedLink":0}
 
-    mongodb=connectToDB()
+    mongodb=connectToMongoDB()
     mongodb.useDB(dbName)
     questions=mongodb.questions
     dictQuestions={}

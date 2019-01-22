@@ -11,7 +11,8 @@ import code
 import prettytable
 import logging
 from programmingalpha import retrievers
-from programmingalpha.DataSet.DBLoader import connectToDB
+from programmingalpha.DataSet.DBLoader import connectToMongoDB
+import heapq
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -26,29 +27,45 @@ args = parser.parse_args()
 logger.info('Initializing ranker...')
 
 
-dbName='AI'
-ranker = retrievers.get_class('tfidf')(dbName)
-
-
+dbName=''
+rankers={}
+rankers['stackoverflow']=retrievers.get_class('tfidf')('stackoverflow')
+rankers['AI']=retrievers.get_class('tfidf')('AI')
+rankers['datascience']=retrievers.get_class('tfidf')('datascience')
+rankers['crossvalidated']=retrievers.get_class('tfidf')('crossvalidated')
+KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 # Drop in to interactive
 # ------------------------------------------------------------------------------
-docDB=connectToDB()
+docDB=connectToMongoDB()
 docDB.useDB(dbName)
 docDB.setDocCollection(retrievers.WorkingDocCollection)
 
-def process(query, k=1):
-    doc_names, doc_scores = ranker.closest_docs(query, k)
+def process(query, k=5):
+    results=[]
+    for dbName in KBSource:
+        ranker=rankers[dbName]
+        doc_names, doc_scores = ranker.closest_docs(query, k)
+        #print("found {}/{} in {}".format(len(doc_names),k,dbName))
+        for i in range(len(doc_names)):
+            results.append((doc_names[i],doc_scores[i],dbName))
+
+
+    results=heapq.nlargest(len(KBSource)*k,key=lambda doc:doc[1],iterable=results)
+
     table = prettytable.PrettyTable(
         ['Rank', 'Doc Id', 'Doc Score','Doc']
     )
-    for i in range(len(doc_names)):
-        table.add_row([i + 1, doc_names[i], '%.5g' % doc_scores[i], docDB.get_doc_text(doc_names[i]) ])
+    for i in range(len(results)):
+        #print([ i + 1, results[i][0], '%.5g' % results[i][1], results[i][2] ])
+        docDB.useDB(results[i][2])
+        docDB.setDocCollection(retrievers.WorkingDocCollection)
+        table.add_row([ i + 1, results[i][0], '%.5g' % results[i][1], docDB.get_doc_text(results[i][0],0,0) ])
     print(table)
 
 
 banner = """
-Interactive TF-IDF DrQA Retriever
+Interactive TF-IDF Programming Alpha For AI Retriever
 >> process(question, k=1)
 >> usage()
 """

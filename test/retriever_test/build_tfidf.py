@@ -21,7 +21,7 @@ from collections import Counter
 from programmingalpha import retrievers
 from programmingalpha import tokenizers
 import programmingalpha
-from programmingalpha.DataSet.DBLoader import connectToDB
+from programmingalpha.DataSet.DBLoader import connectToMongoDB
 
 
 logger = logging.getLogger()
@@ -45,7 +45,7 @@ def init(tokenizer_class):
     global PROCESS_TOK, PROCESS_DB
     PROCESS_TOK = tokenizer_class()
     Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
-    PROCESS_DB=connectToDB()
+    PROCESS_DB=connectToMongoDB()
     PROCESS_DB.useDB(dbName)
     PROCESS_DB.setDocCollection(retrievers.WorkingDocCollection)
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
@@ -95,7 +95,7 @@ def get_count_matrix(args):
     # Map doc_ids to indexes
     global DOC2IDX
 
-    doc_db=connectToDB()
+    doc_db=connectToMongoDB()
     doc_db.useDB(dbName)
     doc_ids=[]
     for doc in doc_db.stackdb.get_collection('QAPForAI').find():
@@ -137,7 +137,7 @@ def get_count_matrix(args):
 # ------------------------------------------------------------------------------
 
 
-def get_tfidf_matrix(cnts):
+def get_tfidf_matrix(cnts:sp.csc_matrix):
     """Convert the word count matrix into tfidf one.
 
     tfidf = log(tf + 1) * log((N - Nt + 0.5) / (Nt + 0.5))
@@ -161,6 +161,7 @@ def get_doc_freqs(cnts):
     return freqs
 
 
+
 # ------------------------------------------------------------------------------
 # Main.
 # ------------------------------------------------------------------------------
@@ -168,14 +169,13 @@ def get_doc_freqs(cnts):
 
 if __name__ == '__main__':
 
-    dbName='AI'
 
 
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--out_dir', type=str, default=programmingalpha.DataPath,
                         help='Directory for saving output files')
-    parser.add_argument('--ngram', type=int, default=4,
+    parser.add_argument('--ngram', type=int, default=2,
                         help=('Use up to N-size n-grams '
                               '(e.g. 2 = unigrams + bigrams)'))
     parser.add_argument('--hash-size', type=int, default=int(math.pow(2, 24)),
@@ -186,6 +186,8 @@ if __name__ == '__main__':
     parser.add_argument('--num-workers', type=int, default=12,
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
+
+    dbName='crossvalidated'
 
     logging.info('Counting words...')
     count_matrix, doc_dict = get_count_matrix(args)
