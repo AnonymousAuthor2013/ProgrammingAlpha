@@ -11,7 +11,7 @@ import code
 import prettytable
 import logging
 from programmingalpha import retrievers
-from programmingalpha.DataSet.DBLoader import connectToMongoDB
+from programmingalpha.DataSet import DBLoader
 import heapq
 
 logger = logging.getLogger()
@@ -27,7 +27,6 @@ args = parser.parse_args()
 logger.info('Initializing ranker...')
 
 
-dbName=''
 rankers={}
 rankers['stackoverflow']=retrievers.get_class('tfidf')('stackoverflow')
 rankers['AI']=retrievers.get_class('tfidf')('AI')
@@ -37,9 +36,8 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 # Drop in to interactive
 # ------------------------------------------------------------------------------
-docDB=connectToMongoDB()
-docDB.useDB(dbName)
-docDB.setDocCollection(retrievers.WorkingDocCollection)
+docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
+
 
 def process(query, k=5):
     results=[]

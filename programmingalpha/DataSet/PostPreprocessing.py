@@ -9,7 +9,6 @@ class PreprocessPostContent(object):
     def getPlainTxt(self,raw_txt):
         txt=re.sub(self.code_insider," ",raw_txt)
         txt=re.sub(self.plain_text," ",txt)
-        txt=txt.replace('\n','')
         return txt
 
     def getEmCodes(self,raw_txt):

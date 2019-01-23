@@ -26,7 +26,7 @@ class Tokens(object):
 
     def __len__(self):
         """The number of tokens."""
-        return len(self.data)
+        return len(self.data[self.TEXT])
 
 
     def getIterator(self):
@@ -37,6 +37,7 @@ class Tokens(object):
         new_tokens = copy.copy(self)
         new_tokens.data = self.data[i: j]
         return new_tokens
+
 
     def untokenize(self):
         """Returns the original text (with whitespace reinserted)."""

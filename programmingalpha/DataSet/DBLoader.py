@@ -19,6 +19,11 @@ class MongoDbConnector(object):
 
 
 class DocDB(object):
+    @staticmethod
+    def filterNILStr(s):
+        filterFunc=lambda s: s and s.strip()
+        return list(filter(filterFunc,s.split('\n')))
+
     #for doc retrival interface
     def initData(self):
         raise NotImplementedError
@@ -58,21 +63,28 @@ class MongoStackExchange(MongoDbConnector,DocDB):
     #for doc retrival interface
     def setDocCollection(self,collectionName):
         self.docs=self.stackdb[collectionName]
-    def get_doc_text(self,doc_id,chunk_title=int(1e6),chunk_answer=int(1e6)):
+    def get_doc_text(self,doc_id,chunk_title=100,chunk_answer=100):
         doc_json=self.docs.find_one({"Id":doc_id})
         if doc_json is None:
             print("error found none",self.stackdb.name,self.docs.name,doc_id)
             return None
 
-        doc=self.textExtractor.getPlainTxt(doc_json["question_title"])
-        doc="Title=>\n "+doc+" \n"
+        title=self.textExtractor.getPlainTxt(doc_json["question_title"])
+        title='\n'.join(self.filterNILStr(title))
+
+        doc=["Title=>",title]
 
         if chunk_title>0:
             doc_title=self.textExtractor.getPlainTxt(doc_json["question_body"])
-            doc+="Decription=>\n "+doc_title[:chunk_title]+" \n"
+            doc_title='\n'.join(self.filterNILStr(doc_title)[:chunk_title])
+            doc.extend(["Decription=>",doc_title])
         if chunk_answer>0:
-            doc_answer=self.textExtractor.getPlainTxt(doc_json["answer"])
-            doc+="Answer=>\n "+doc_answer[:chunk_answer]
+            doc_answer=self.textExtractor.getPlainTxt(doc_json["answer_body"])
+            doc_answer='\n'.join(self.filterNILStr(doc_answer)[:chunk_answer])
+            doc.extend(["Answer=>",doc_answer])
+
+        doc='\n'.join(doc)
+
         return doc
 
     def get_doc_ids(self):
@@ -125,24 +137,29 @@ class MongoStackExchange(MongoDbConnector,DocDB):
 class MongoWikiDoc(MongoDbConnector,DocDB):
     def __init__(self,host,port,user,passwd):
         MongoDbConnector.__init__(self,host,port,user,passwd)
-        self.useDB()
 
     def useDB(self,dbName="wikidocs"):
         super(MongoWikiDoc, self).useDB(dbName)
 
-        self.wikidb=self.client["wikidocs"]
+        self.wikidb=self.client[dbName]
+        self.initData()
+
     def initData(self):
         self.docs=self.wikidb["articles"]
-        self.tags=self.wikidb[""]
+        #self.tags=self.wikidb[""]
 
     def setDocCollection(self,collectionName):
         self.docDB=self.wikidb[collectionName]
 
-    def get_doc_text(self,doc_id,text_chunk=int(1e+6)):
+    def get_doc_text(self,doc_id,text_paragraphs=100):
         doc_json=self.docDB.find_one({"Id":doc_id})
-        doc="Title=> "+doc_json["Title"]+"\n"
-        if text_chunk>0:
-            doc+="Text=> "+doc_json["text"][:text_chunk]
+        doc=["Title=>",doc_json["Title"]]
+        if text_paragraphs>0:
+            text=self.filterNILStr(doc_json["text"])[1:text_paragraphs]
+            text='\n'.join(text)
+            doc.extend(["Text=>",text])
+
+        doc='\n'.join(doc)
 
         return doc
 
@@ -152,7 +169,10 @@ class MongoWikiDoc(MongoDbConnector,DocDB):
             doc_ids.append(doc["Id"])
         return doc_ids
 
-def connectToMongoDB(connector_DB:MongoDbConnector.__class__=MongoStackExchange):
-    dbauth=MongodbAuth
-    db=connector_DB(dbauth["host"], dbauth["port"], dbauth["user"], dbauth["passwd"])
-    return db
+
+if __name__ == '__main__':
+    db=MongoStackExchange(**MongodbAuth)
+    db.useDB("stackoverflow")
+    db.setDocCollection("QAPForAI")
+    text=db.get_doc_text(1083,chunk_answer=0)
+    print(text)

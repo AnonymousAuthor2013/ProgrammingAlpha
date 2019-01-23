@@ -4,5 +4,8 @@ graphData/
 *.pyc
 .ipynb_checkpoints/
 data/
+modelData/
+dist/
+build/
 
 

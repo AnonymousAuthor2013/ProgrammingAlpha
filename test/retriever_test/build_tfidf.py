@@ -21,7 +21,7 @@ from collections import Counter
 from programmingalpha import retrievers
 from programmingalpha import tokenizers
 import programmingalpha
-from programmingalpha.DataSet.DBLoader import connectToMongoDB
+from programmingalpha.DataSet.DBLoader import MongodbAuth,MongoStackExchange
 
 
 logger = logging.getLogger()
@@ -45,7 +45,7 @@ def init(tokenizer_class):
     global PROCESS_TOK, PROCESS_DB
     PROCESS_TOK = tokenizer_class()
     Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
-    PROCESS_DB=connectToMongoDB()
+    PROCESS_DB=MongoStackExchange(**MongodbAuth)
     PROCESS_DB.useDB(dbName)
     PROCESS_DB.setDocCollection(retrievers.WorkingDocCollection)
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
@@ -53,7 +53,7 @@ def init(tokenizer_class):
 
 def fetch_text(doc_id):
     global PROCESS_DB
-    return PROCESS_DB.get_doc_text(doc_id)
+    return PROCESS_DB.get_doc_text(doc_id,chunk_answer=0)
 
 
 def tokenize(text):
@@ -95,7 +95,7 @@ def get_count_matrix(args):
     # Map doc_ids to indexes
     global DOC2IDX
 
-    doc_db=connectToMongoDB()
+    doc_db=MongoStackExchange(**MongodbAuth)
     doc_db.useDB(dbName)
     doc_ids=[]
     for doc in doc_db.stackdb.get_collection('QAPForAI').find():
@@ -187,7 +187,7 @@ if __name__ == '__main__':
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
 
-    dbName='crossvalidated'
+    dbName='wikidocs'
 
     logging.info('Counting words...')
     count_matrix, doc_dict = get_count_matrix(args)
