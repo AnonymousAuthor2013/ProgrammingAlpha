@@ -39,14 +39,15 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
-sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model.bin")
+sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model-1.bin")
+fetchEach=5
 
-def process(query, k=5):
+def process(query, k=1):
     results=[]
     docs=[]
     for dbName in KBSource:
         ranker=rankers[dbName]
-        doc_names, doc_scores = ranker.closest_docs(query, k)
+        doc_names, doc_scores = ranker.closest_docs(query, fetchEach)
         #print("found {}/{} in {}".format(len(doc_names),k,dbName))
         for i in range(len(doc_names)):
             results.append(

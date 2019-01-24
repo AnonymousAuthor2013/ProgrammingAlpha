@@ -30,12 +30,12 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
 sranker=SemanticRanker(programmingalpha.ModelPath+"/pytorch_model-1.bin")
-fetchEach=25
+fetchEach=5
 
 def process(query, k=1):
 
     docs=[]
-    logger.info("fetching using ngram retrieval model")
+    logger.info("Retieving corpus using ngram retrieval model")
     for dbName in KBSource:
         ranker=rankers[dbName]
         doc_names, doc_scores = ranker.closest_docs(query, fetchEach)
@@ -50,7 +50,7 @@ def process(query, k=1):
                  }
                  )
 
-    logger.info("using semantic ranker to resort {} entries".format(len(docs)))
+    logger.info("Using semantic ranker model to resort {} entries".format(len(docs)))
     results=sranker.closest_docs(query,docs,k)
 
     table = prettytable.PrettyTable(

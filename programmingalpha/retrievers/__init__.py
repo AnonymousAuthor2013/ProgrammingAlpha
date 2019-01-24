@@ -1,5 +1,4 @@
 from . import utils
-import os
 from ..DataSet.DBLoader import MongoStackExchange
 from .tfidf_doc_ranker import TfidfDocRanker
 from .semantic_ranker import SemanticRanker
