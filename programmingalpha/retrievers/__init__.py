@@ -1,6 +1,8 @@
 from . import utils
 import os
 from ..DataSet.DBLoader import MongoStackExchange
+from .tfidf_doc_ranker import TfidfDocRanker
+from .semanticRanker import SemanticRanker
 
 WorkingDocCollection="QAPForAI"
 
@@ -19,6 +21,7 @@ def get_class(name):
         return TfidfDocRanker
     if name == 'mongoDB':
         return MongoStackExchange
+    if name=='semantic':
+        return SemanticRanker
     raise RuntimeError('Invalid retriever class: %s' % name)
 
-from .tfidf_doc_ranker import TfidfDocRanker

@@ -13,11 +13,13 @@ logger.addHandler(console)
 
 db=MongoWikiDoc(**MongodbAuth)
 db.useDB('wikidocs')
-db.setDocCollection('articles')
 
-#text=db.get_doc_text(18585770)
-#print(text)
-#exit(10)
+db.setDocCollection('categories')
+crawled_ids=db.get_doc_ids()
+
+db.setDocCollection('articles')
+wikidoc_ids=db.get_doc_ids()
+
 crawler=AgentProxyCrawler()
 
 def requestData(id=None):
@@ -44,27 +46,38 @@ def requestData(id=None):
     except KeyError as e:
         #e.with_traceback()
 
-        print("data content",data)
+        logger.info("data content",data)
         #exit(1)
+
+    if 'title' not in data:
+        return None
 
     return {"Id":id,"Title":data["title"],"categories":cats}
 
 
 #cats=requestData(238493);print(cats);exit(10)
 
-wikidoc_ids=db.get_doc_ids()
-print("init with {} doc ids".format(len(wikidoc_ids)))
-batch_size=10
+
+logger.info("init with {} doc ids and {} crawled ids".format(len(wikidoc_ids),len(crawled_ids)))
+wikidoc_ids=set(wikidoc_ids).difference(crawled_ids)
+wikidoc_ids=list(wikidoc_ids)
+logger.info("incrementally crawl {} ids".format(len(wikidoc_ids)))
+batch_size=100
 
 batch_doc_ids=[wikidoc_ids[i:i+batch_size] for i in range(0,len(wikidoc_ids),batch_size)]
 
 workers=ThreadPool(batch_size)
-collection_tag_tmp=db.wikidb["tags_tmp"]
+collection_cats=db.wikidb["categories"]
+cache_insterion=[]
 for i in range(len(batch_doc_ids)):
     logger.info(25*"*"+"requesting batches {}/{}".format(i+1,len(batch_doc_ids))+"*"*25)
     batch_results=workers.map(requestData,batch_doc_ids[i])
-
-    collection_tag_tmp.insert_many(batch_results)
-
+    cache_insterion.extend(batch_results)
+    if len(cache_insterion)>batch_size:
+        cache_insterion=list(filter(None,cache_insterion))
+        collection_cats.insert_many(cache_insterion)
+        cache_insterion.clear()
 workers.close()
-workers.close()
+workers.join()
+
+

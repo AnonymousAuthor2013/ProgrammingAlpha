@@ -1,11 +1,11 @@
-from programmingalpha.DataSet.DBLoader import MongoStackExchange,connectToMongoDB
+from programmingalpha.DataSet.DBLoader import MongoStackExchange,MongoWikiDoc,MongodbAuth
 import argparse
 import regex as re
 
 
 def initPool():
     global db
-    db=connectToMongoDB()
+    db=MongoStackExchange(**MongodbAuth)
 
 def splitTags():
     db.useDB("crossvalidated")
@@ -38,9 +38,11 @@ def splitTags():
     questions.rename(name)
 
 def createkeysForWikiDocs():
+    db=MongoWikiDoc(**MongodbAuth)
+
     db.useDB("wikidocs")
-    articles=db.stackdb.get_collection('articles')
-    tmp_collection=db.stackdb.create_collection('tmp_articles')
+    articles=db.wikidb.get_collection('articles')
+    tmp_collection=db.wikidb.create_collection('tmp_articles')
     cache_docs=[]
     for doc in articles.find().batch_size(args.batch_size):
         newdoc={"Id":int(doc['id']),"text":doc["text"],"Title":doc["title"],"url":doc["url"]}
@@ -57,6 +59,30 @@ def createkeysForWikiDocs():
     tmp_collection.create_index("Id")
 
 
+def distinctMove(src,dst):
+    db=MongoWikiDoc(**MongodbAuth)
+    db.useDB("wikidocs")
+    id_set=set()
+    dst_collection=db.wikidb.create_collection(dst)
+    src_colletion=db.wikidb.get_collection(src)
+    insert_cache=[]
+    print("count before distinct",src_colletion.count())
+
+    for doc in src_colletion.find().batch_size(10000):
+        if doc["Id"] in id_set:
+            continue
+        id_set.add(doc["Id"])
+        insert_cache.append(doc)
+        if len(insert_cache)%10000==0:
+            dst_collection.insert_many(insert_cache)
+            insert_cache.clear()
+    if len(insert_cache)>0:
+        dst_collection.insert_many(insert_cache)
+
+    dst_collection.create_index("Id")
+
+    print("count after distinct",dst_collection.count())
+
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--mongodb', type=str, help='mongodb host, e.g. mongodb://10.1.1.9:27017/',default='mongodb://10.1.1.9:27017/')
@@ -66,5 +92,7 @@ if __name__ == '__main__':
     initPool()
     tag_matcher=re.compile(r"<.*?>",re.I)
 
-    createkeysForWikiDocs()
+    #createkeysForWikiDocs()
     #splitTags()
+
+    distinctMove("categories","tmp_tags")

@@ -1,6 +1,11 @@
 from programmingalpha.retrievers.semanticRanker import *
 import programmingalpha
 import random
+from torch.utils.data.distributed import DistributedSampler
+import random
+from tqdm import tqdm, trange
+from pytorch_pretrained_bert.optimization import BertAdam
+from torch.utils.data import RandomSampler
 
 def main():
 
@@ -26,8 +31,7 @@ def main():
     gradient_accumulation_steps=1
     fp16=False
     loss_scale=0
-
-
+    loss_partial=2
 
     processors = {
         "semantic": SemanticPairProcessor,
@@ -59,7 +63,9 @@ def main():
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
     if os.path.exists(output_dir) and os.listdir(output_dir):
-        raise ValueError("Output directory ({}) already exists and is not empty.".format(output_dir))
+        msg="Output directory ({}) already exists and is not empty.".format(output_dir)
+        if input(msg+"=> overwrite?(Y/N)") not in ('Y','y'):
+            raise ValueError(msg)
 
     os.makedirs(output_dir, exist_ok=True)
 
@@ -83,14 +89,14 @@ def main():
             len(train_examples) / train_batch_size / gradient_accumulation_steps * num_train_epochs)
 
     # Prepare model
-    model = BertForSequenceClassification.from_pretrained(bert_model,
+    model = BertForSemanticPrediction.from_pretrained(bert_model,
               num_labels = num_labels)
 
     if fp16:
         model.half()
     model.to(device)
 
-    model = torch.nn.DataParallel(model)
+    model = torch.nn.DataParallel(model,device_ids=[0,1])
 
     # Prepare optimizer
     param_optimizer = list(model.named_parameters())
@@ -125,7 +131,7 @@ def main():
 
     global_step = 0
     if do_train:
-        train_features = convert_examples_to_features(
+        train_features = SemanticRanker.convert_examples_to_features(
             train_examples, label_list, max_seq_length, tokenizer)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
@@ -135,7 +141,10 @@ def main():
         all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
-        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        all_sim_values=torch.tensor([f.simValue for f in train_features],dtype=torch.float)
+        #print("train",all_sim_values.size(),all_label_ids.size(),all_segment_ids.size(),all_input_mask.size(),all_input_ids.size())
+
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
         train_sampler = RandomSampler(train_data)
         train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=train_batch_size)
 
@@ -145,8 +154,9 @@ def main():
             nb_tr_examples, nb_tr_steps = 0, 0
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids = batch
-                loss = model(input_ids, segment_ids, input_mask, label_ids)
+                input_ids, input_mask, segment_ids, label_ids,sim_values = batch
+                loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
+                loss=loss[0]+loss_partial*loss[1]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if gradient_accumulation_steps > 1:
@@ -174,14 +184,18 @@ def main():
     output_model_file = os.path.join(output_dir, "pytorch_model.bin")
     torch.save(model_to_save.state_dict(), output_model_file)
 
-    # Load a trained model that you have fine-tuned
-    model_state_dict = torch.load(output_model_file)
-    model = BertForSequenceClassification.from_pretrained(bert_model, state_dict=model_state_dict)
-    model.to(device)
 
-    if do_eval and (cuda_rank == -1 or torch.distributed.get_rank() == 0):
+
+    # Load a trained model that you have fine-tuned
+    #model_state_dict = torch.load(output_model_file)
+    #model = BertForSemanticPrediction.from_pretrained(bert_model, state_dict=model_state_dict,num_labels=num_labels)
+    #model.to(device)
+
+    sranker=SemanticRanker(output_model_file)
+
+    if do_eval:
         eval_examples = processor.get_dev_examples(data_dir)
-        eval_features = convert_examples_to_features(
+        eval_features = SemanticRanker.convert_examples_to_features(
             eval_examples, label_list, max_seq_length, tokenizer)
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_examples))
@@ -190,38 +204,65 @@ def main():
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        all_sim_values=torch.tensor([f.simValue for f in eval_features],dtype=torch.float)
+
+        #print("eval",all_sim_values.size(),all_label_ids.size(),all_segment_ids.size(),all_input_mask.size(),all_input_ids.size())
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
+        test_data=TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
-        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+        test_sampler=SequentialSampler(test_data)
+        eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=eval_batch_size)
+        test_dataloader=DataLoader(test_data,sampler=test_sampler,batch_size=eval_batch_size)
+        out_logits,out_simValues =sranker.computeSimvalue(test_dataloader)
+        print(out_simValues.shape,out_logits.shape)
+        print(out_simValues[:3])
+        print(out_logits[:3])
+        print(all_sim_values[:3])
 
         model.eval()
-        eval_loss, eval_accuracy = 0, 0
+        eval_loss, eval_accuracy,eval_error = 0, 0,0
         nb_eval_steps, nb_eval_examples = 0, 0
-        for input_ids, input_mask, segment_ids, label_ids in eval_dataloader:
+        i=0
+        for input_ids, input_mask, segment_ids, label_ids,sim_values in eval_dataloader:
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
             label_ids = label_ids.to(device)
+            sim_values=sim_values.to(device)
 
             with torch.no_grad():
-                tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
-                logits = model(input_ids, segment_ids, input_mask)
+                tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
+                #logits,simValues = model(input_ids, segment_ids, input_mask)
+                tmp_eval_loss=tmp_eval_loss[0]+loss_partial*tmp_eval_loss[1]
 
-            logits = logits.detach().cpu().numpy()
+            logits=out_logits[i:i+eval_batch_size]
+            simValues=out_simValues[i:i+eval_batch_size]
+            i+=eval_batch_size
+
+            #logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
             tmp_eval_accuracy = accuracy(logits, label_ids)
 
+            #simValues=simValues.detach().cpu().numpy()
+            sim_values=sim_values.to('cpu').numpy()
+            tmp_eval_error=mseError(simValues,sim_values)
+
+
             eval_loss += tmp_eval_loss.mean().item()
             eval_accuracy += tmp_eval_accuracy
+            eval_error += tmp_eval_error
 
             nb_eval_examples += input_ids.size(0)
             nb_eval_steps += 1
 
         eval_loss = eval_loss / nb_eval_steps
         eval_accuracy = eval_accuracy / nb_eval_examples
+        eval_error=eval_error/nb_eval_examples
+
 
         result = {'eval_loss': eval_loss,
+                  'eval_error':eval_error,
                   'eval_accuracy': eval_accuracy,
                   'global_step': global_step,
                   'loss': tr_loss/nb_tr_steps}
@@ -235,5 +276,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="datascience"
+    dataSource=""
     main()
