@@ -30,7 +30,7 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
 sranker=SemanticRanker(programmingalpha.ModelPath+"/pytorch_model.bin")
-fetchEach=25
+fetchEach=10
 
 def process(query, k=1):
 
