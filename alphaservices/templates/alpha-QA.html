@@ -3,7 +3,7 @@
 <head>
     Programming Alpha is a machine question-asnwering AI system.
 <meta charset="utf-8">
-<title>test QA service</title>
+<title>Programming Alpha QA service</title>
 </head>
 <body>
 <p>
@@ -21,7 +21,7 @@
     The core part of the system is a ngram hashing(murmurhash3) retrieval model and a multi-task fine-tuning
     Semantic Understanding Model which shares some weights of google Bert Base.
 </p>
-    <form action="/polls/ask-post" method="post">
+    <form action="/webServices/alpha-QA" method="post">
         {% csrf_token %}
         <input type="text" name="q">
         <input type="submit" value="Ask">

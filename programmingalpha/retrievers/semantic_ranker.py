@@ -179,10 +179,10 @@ class SemanticRanker(object):
         model.to(self.device)
         model = torch.nn.DataParallel(model,device_ids=[0,1])
         self.model=model
-        #print("loaded model")
+        print(25*"*"+"loaded model"+"*"*25)
 
         self.tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath, do_lower_case=self.do_lower_case)
-
+        logger.info("ranker model init finished!!!")
 
     def getSemanticPair(self,query_doc,docs,doc_ids):
         examples=[]
@@ -199,12 +199,13 @@ class SemanticRanker(object):
         return examples
 
     def closest_docs(self,query_doc,docs,k=1):
+        print("closest method excuting")
         doc_texts=[f["text"] for f in docs]
         doc_ids=[f["Id"] for f in docs]
         doc_ids=np.array(doc_ids,dtype=str).reshape((-1,1))
 
         eval_examples=self.getSemanticPair(query_doc,doc_texts,doc_ids)
-
+        print("find {} pairs to compute".format(len(eval_examples)))
 
         eval_features = self.convert_examples_to_features(
             eval_examples, [self.__default_label], self.max_seq_length, self.tokenizer,0)
@@ -236,6 +237,7 @@ class SemanticRanker(object):
         simValues=[]
 
         for input_ids, input_mask, segment_ids in eval_dataloader:
+            logger.info("batch predicting")
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)

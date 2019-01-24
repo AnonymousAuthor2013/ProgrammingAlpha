@@ -39,8 +39,8 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
-sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model-1.bin")
-fetchEach=5
+sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model.bin")
+fetchEach=25
 
 def process(query, k=1):
     results=[]

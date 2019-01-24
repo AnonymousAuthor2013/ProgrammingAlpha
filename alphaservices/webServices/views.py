@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import HttpResponse,HttpRequest
 from .qamodel import process
+from html import escape
 #def process(q):return "No"
 # Create your views here.
 
@@ -16,6 +17,7 @@ def getAnswer(request:HttpRequest):
         question=request.POST['q']
         message = 'the quetsion you asked is ' + question
         ans=process(question)
+        ans=escape(ans)
     else:
         message = 'cannot answer blank questions!!!'
 
@@ -23,6 +25,7 @@ def getAnswer(request:HttpRequest):
     if request.POST:
         reply['answer'] = ans if ans else message
 
-    print("request body=>",request.body)
-
-    return render(request, "ask-post.html", reply)
+    #print("request body=>",request.body)
+    print("ans is")
+    print(ans)
+    return render(request, "alpha-QA.html", reply)

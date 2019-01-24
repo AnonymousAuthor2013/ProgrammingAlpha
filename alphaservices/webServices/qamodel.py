@@ -29,7 +29,7 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
-sranker=SemanticRanker(programmingalpha.ModelPath+"/pytorch_model-1.bin")
+sranker=SemanticRanker(programmingalpha.ModelPath+"/pytorch_model.bin")
 fetchEach=5
 
 def process(query, k=1):
@@ -53,22 +53,21 @@ def process(query, k=1):
     logger.info("Using semantic ranker model to resort {} entries".format(len(docs)))
     results=sranker.closest_docs(query,docs,k)
 
-    table = prettytable.PrettyTable(
-        ['Rank', 'Doc Id', 'Doc Score','Doc']
-    )
+    table = []
     for i in range(len(results)):
+
         r=results[i]
         doc_id,dbName=r[0].split("|||")
         doc_id=int(doc_id)
-        score=float(r[1])
-
 
         docDB.useDB(dbName)
         docDB.setDocCollection(retrievers.WorkingDocCollection)
-        table.add_row([ i + 1, r[0], '%.5g' % score, docDB.get_doc_text(doc_id,0,10) ])
+        table.append("<p>"+docDB.get_doc_text(doc_id,0,10)+"</p>")
 
-    #print(table)
+        print(i+1,r[1])
 
-    return table.get_html_string()
+    print(table)
+
+    return " <br/>\n".join(table)
 
 
