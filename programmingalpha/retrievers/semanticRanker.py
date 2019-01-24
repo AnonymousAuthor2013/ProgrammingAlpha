@@ -196,6 +196,7 @@ class SemanticRanker(object):
         model.to(self.device)
         model = torch.nn.DataParallel(model,device_ids=[0,1])
         self.model=model
+        #print("loaded model")
 
         self.tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath, do_lower_case=self.do_lower_case)
 
@@ -217,7 +218,7 @@ class SemanticRanker(object):
     def closest_docs(self,query_doc,docs,k=1):
         doc_texts=[f["text"] for f in docs]
         doc_ids=[f["Id"] for f in docs]
-        doc_ids=np.array(doc_ids,dtype=int).reshape((-1,1))
+        doc_ids=np.array(doc_ids,dtype=str).reshape((-1,1))
 
         eval_examples=self.getSemanticPair(query_doc,doc_texts,doc_ids)
 
@@ -242,8 +243,7 @@ class SemanticRanker(object):
         logits,simValues=self.computeSimvalue(eval_dataloader)
 
         results=np.concatenate((doc_ids,simValues),axis=1).tolist()
-        results.sort(key=lambda x:x[1])
-
+        results.sort(key=lambda x:float(x[1]),reverse=True)
         return results[:k]
 
     def computeSimvalue(self,eval_dataloader:DataLoader):
@@ -354,7 +354,7 @@ class SemanticRanker(object):
                                   label_id=label_id,
                                   value=example.value))
 
-            if verbose>0:
+            if verbose>0 and len(features)%100==0:
                 logger.info("loaded {} features".format(len(features)))
 
         return features

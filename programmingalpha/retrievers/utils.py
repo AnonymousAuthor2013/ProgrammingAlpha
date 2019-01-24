@@ -13,6 +13,9 @@ import scipy.sparse as sp
 from sklearn.utils import murmurhash3_32
 
 
+def getTF_IDF_Data(data_source,ngram=2,hash_size=16777216,tokenizer_name='bert'):
+    dataName='tf_idf_hash/{}-docs-tfidf-ngram={}-hash={}-tokenizer={}.npz'.format(data_source,ngram,hash_size,tokenizer_name)
+    return dataName
 # ------------------------------------------------------------------------------
 # Sparse matrix saving/loading helpers.
 # ------------------------------------------------------------------------------

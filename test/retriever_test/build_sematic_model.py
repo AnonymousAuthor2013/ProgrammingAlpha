@@ -1,6 +1,5 @@
 from programmingalpha.retrievers.semanticRanker import *
 import programmingalpha
-import random
 from torch.utils.data.distributed import DistributedSampler
 import random
 from tqdm import tqdm, trange
@@ -31,7 +30,7 @@ def main():
     gradient_accumulation_steps=1
     fp16=False
     loss_scale=0
-    loss_partial=2
+    loss_partial=[1,5]
 
     processors = {
         "semantic": SemanticPairProcessor,
@@ -128,8 +127,9 @@ def main():
                              lr=learning_rate,
                              warmup=warmup_proportion,
                              t_total=t_total)
-
+    tr_loss=None
     global_step = 0
+
     if do_train:
         train_features = SemanticRanker.convert_examples_to_features(
             train_examples, label_list, max_seq_length, tokenizer)
@@ -156,7 +156,7 @@ def main():
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids,sim_values = batch
                 loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
-                loss=loss[0]+loss_partial*loss[1]
+                loss=loss_partial[0]*loss[0]+loss_partial[1]*loss[1]
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
                 if gradient_accumulation_steps > 1:
@@ -234,7 +234,7 @@ def main():
             with torch.no_grad():
                 tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
                 #logits,simValues = model(input_ids, segment_ids, input_mask)
-                tmp_eval_loss=tmp_eval_loss[0]+loss_partial*tmp_eval_loss[1]
+                tmp_eval_loss=loss_partial[0]*tmp_eval_loss[0]+loss_partial[1]*tmp_eval_loss[1]
 
             logits=out_logits[i:i+eval_batch_size]
             simValues=out_simValues[i:i+eval_batch_size]
@@ -265,7 +265,8 @@ def main():
                   'eval_error':eval_error,
                   'eval_accuracy': eval_accuracy,
                   'global_step': global_step,
-                  'loss': tr_loss/nb_tr_steps}
+                  'loss': tr_loss/nb_tr_steps if tr_loss else "not availabel"
+                  }
 
         output_eval_file = os.path.join(output_dir, "eval_results.txt")
         with open(output_eval_file, "w") as writer:
@@ -276,5 +277,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource=""
+    dataSource="datascience"
     main()

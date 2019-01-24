@@ -54,21 +54,22 @@ def process(query, k=5):
                  "score":doc_scores[i],
                  "db":dbName}
             )
+            docDB.useDB(dbName)
+            docDB.setDocCollection(retrievers.WorkingDocCollection)
             docs.append(
-                {"Id":doc_names[i]+"|||"+dbName,
+                {"Id":"{}|||{}".format(doc_names[i],dbName),
                  "text":docDB.get_doc_text(doc_names[i],chunk_answer=0)
                  }
                  )
 
 
-    results=heapq.nlargest(k,key=lambda doc:doc[1],iterable=results)
+    results=heapq.nlargest(k,key=lambda doc:doc["score"],iterable=results)
 
     table = prettytable.PrettyTable(
         ['Rank', 'Doc Id', 'Doc Score','Doc']
     )
     for i in range(len(results)):
-        #print([ i + 1, results[i][0], '%.5g' % results[i][1], results[i][2] ])
-        docDB.useDB(results[i][2])
+        docDB.useDB(results[i]["db"])
         docDB.setDocCollection(retrievers.WorkingDocCollection)
         table.add_row([ i + 1, "{}-{}".format(results[i]["Id"],results[i]["db"]),
                         '%.5g' % results[i]["score"], docDB.get_doc_text(results[i]["Id"],0,0) ])
@@ -78,23 +79,24 @@ def process(query, k=5):
     logger.info("using semantic ranker to resort {} entries".format(len(docs)))
     sresults=sranker.closest_docs(query,docs,k)
 
-    table.clear()
+    table = prettytable.PrettyTable(
+        ['Rank', 'Doc Id', 'Doc Score','Doc']
+    )
     for i in range(len(sresults)):
         r=sresults[i]
         doc_id,dbName=r[0].split("|||")
         doc_id=int(doc_id)
-        score=r[1]
+        score=float(r[1])
 
-        #print([ i + 1, results[i][0], '%.5g' % results[i][1], results[i][2] ])
 
         docDB.useDB(dbName)
         docDB.setDocCollection(retrievers.WorkingDocCollection)
-        table.add_row([ i + 1, r, '%.5g' % score, docDB.get_doc_text(doc_id,0,0) ])
+        table.add_row([ i + 1, r[0], '%.5g' % score, docDB.get_doc_text(doc_id,0,0) ])
 
     print(table)
 
 banner = """
-Interactive TF-IDF Programming Alpha For AI Retriever
+Interactive Programming Alpha For AI Retriever
 >> process(question, k=1)
 >> usage()
 """

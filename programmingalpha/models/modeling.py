@@ -1,6 +1,7 @@
 from .pytorchBert import (PreTrainedBertModel,BertModel,BertPreTrainingHeads,BertOnlyMLMHead,BertOnlyNSPHead)
 from torch.nn import CrossEntropyLoss,MSELoss
 from torch import nn
+from .pytorchBert import relu_clip
 
 class BertForPreTraining(PreTrainedBertModel):
     """BERT model with pre-training heads.

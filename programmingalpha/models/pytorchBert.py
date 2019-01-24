@@ -47,6 +47,8 @@ def gelu(x):
 def swish(x):
     return x * torch.sigmoid(x)
 
+def relu_clip(x):
+    return torch.min(torch.relu(x),1)
 
 ACT2FN = {"gelu": gelu, "relu": torch.nn.functional.relu, "swish": swish}
 

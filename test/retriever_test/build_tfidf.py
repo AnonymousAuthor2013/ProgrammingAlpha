@@ -21,7 +21,7 @@ from collections import Counter
 from programmingalpha import retrievers
 from programmingalpha import tokenizers
 import programmingalpha
-from programmingalpha.DataSet.DBLoader import MongodbAuth,MongoStackExchange
+from programmingalpha.DataSet.DBLoader import MongodbAuth,MongoStackExchange,MongoWikiDoc
 
 
 logger = logging.getLogger()
@@ -50,11 +50,22 @@ def init(tokenizer_class):
     PROCESS_DB.setDocCollection(retrievers.WorkingDocCollection)
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
 
+def initWiki(tokenizer_class):
+    global PROCESS_TOK, PROCESS_DB
+    PROCESS_TOK = tokenizer_class()
+    Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
+    PROCESS_DB=MongoWikiDoc(**MongodbAuth)
+    PROCESS_DB.useDB(dbName)
+    PROCESS_DB.setDocCollection("articles")
+    Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
 
 def fetch_text(doc_id):
     global PROCESS_DB
     return PROCESS_DB.get_doc_text(doc_id,chunk_answer=0)
 
+def fetch_text_wiki(doc_id):
+    global PROCESS_DB
+    return PROCESS_DB.get_doc_text(doc_id,text_paragraphs=5)
 
 def tokenize(text):
     global PROCESS_TOK
@@ -70,7 +81,7 @@ def count(ngram, hash_size, doc_id):
     row, col, data = [], [], []
     # Tokenize
 
-    tokens = tokenize(retrievers.utils.normalize(fetch_text(doc_id)))
+    tokens = tokenize(retrievers.utils.normalize(fetch_text_wiki(doc_id)))
 
     # Get ngrams from tokens, with stopword/punctuation filtering.
     ngrams = tokens.ngrams(
@@ -95,17 +106,17 @@ def get_count_matrix(args):
     # Map doc_ids to indexes
     global DOC2IDX
 
-    doc_db=MongoStackExchange(**MongodbAuth)
+    doc_db=MongoWikiDoc(**MongodbAuth)
     doc_db.useDB(dbName)
     doc_ids=[]
-    for doc in doc_db.stackdb.get_collection('QAPForAI').find():
+    for doc in doc_db.wikidb.get_collection('articles').find():
         DOC2IDX[doc["Id"]]=len(DOC2IDX)
         doc_ids.append(doc["Id"])
     # Setup worker pool
     tok_class = tokenizers.get_class(args.tokenizer)
     workers = ProcessPool(
         args.num_workers,
-        initializer=init,
+        initializer=initWiki,
         initargs=(tok_class,)
     )
 
@@ -198,7 +209,7 @@ if __name__ == '__main__':
     logger.info('Getting word-doc frequencies...')
     freqs = get_doc_freqs(count_matrix)
 
-    basename =retrievers.getTF_IDF_Data(dbName,args.ngram, args.hash_size, args.tokenizer)
+    basename =retrievers.utils.getTF_IDF_Data(dbName,args.ngram, args.hash_size, args.tokenizer)
 
     filename = os.path.join(args.out_dir, basename)
 

@@ -14,7 +14,7 @@ from multiprocessing.pool import ThreadPool
 from functools import partial
 import programmingalpha
 from . import utils
-from . import getTF_IDF_Data
+from .utils import getTF_IDF_Data
 from .. import tokenizers
 
 logger = logging.getLogger(__name__)
