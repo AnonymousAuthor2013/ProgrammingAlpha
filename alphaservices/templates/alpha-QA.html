@@ -8,7 +8,7 @@
 <body>
 <p>
     The service currently support AI related questions answering for relative engineers and learners.
-    The system backend is based on large corpus infromation aggregation.
+    The system backend is based on large corpus information aggregation.
     currently ,the knowledge data base is extracted from:<br/>
     <ul>
     <li><a href="https://stackoverflow.com/">Stack Overflow</a> </li>
@@ -23,11 +23,10 @@
 </p>
     <form action="/webServices/alpha-QA" method="post">
         {% csrf_token %}
-        <input type="text" name="q">
+        <input type="text" style="width: 500px"  name="q">
         <input type="submit" value="Ask">
     </form>
-
-<p> <strong> {{ answer }} </strong> </p>
+<p> <strong>{{ answer | safe}}</strong> </p>
 
 <p>
     I hope to find some practical students of software academy or someone who holds pretty

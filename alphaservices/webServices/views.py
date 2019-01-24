@@ -17,7 +17,7 @@ def getAnswer(request:HttpRequest):
         question=request.POST['q']
         message = 'the quetsion you asked is ' + question
         ans=process(question)
-        ans=escape(ans)
+        #ans=escape(ans)
     else:
         message = 'cannot answer blank questions!!!'
 
@@ -26,6 +26,6 @@ def getAnswer(request:HttpRequest):
         reply['answer'] = ans if ans else message
 
     #print("request body=>",request.body)
-    print("ans is")
-    print(ans)
+    #print("ans is")
+    #print(ans)
     return render(request, "alpha-QA.html", reply)

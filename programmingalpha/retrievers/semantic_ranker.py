@@ -6,6 +6,7 @@ import json
 import os
 import logging
 import numpy as np
+import sys
 
 
 import programmingalpha
@@ -14,12 +15,10 @@ from torch.utils.data import TensorDataset, DataLoader, SequentialSampler
 
 
 from programmingalpha.tokenizers.bert_tokenizer import BertTokenizer
-from programmingalpha.models.modeling import BertForSequenceClassification,BertForSemanticPrediction
+from programmingalpha.models.modeling import BertForSemanticPrediction
 
-logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-                    datefmt = '%m/%d/%Y %H:%M:%S',
-                    level = logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class InputExample(object):
@@ -179,10 +178,10 @@ class SemanticRanker(object):
         model.to(self.device)
         model = torch.nn.DataParallel(model,device_ids=[0,1])
         self.model=model
-        print(25*"*"+"loaded model"+"*"*25)
+        #print(25*"*"+"loaded model"+"*"*25)
 
         self.tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath, do_lower_case=self.do_lower_case)
-        logger.info("ranker model init finished!!!")
+        #logger.info("ranker model init finished!!!")
 
     def getSemanticPair(self,query_doc,docs,doc_ids):
         examples=[]
@@ -199,13 +198,13 @@ class SemanticRanker(object):
         return examples
 
     def closest_docs(self,query_doc,docs,k=1):
-        print("closest method excuting")
+        #logger.warning("closest method excuting")
         doc_texts=[f["text"] for f in docs]
         doc_ids=[f["Id"] for f in docs]
         doc_ids=np.array(doc_ids,dtype=str).reshape((-1,1))
 
         eval_examples=self.getSemanticPair(query_doc,doc_texts,doc_ids)
-        print("find {} pairs to compute".format(len(eval_examples)))
+        #print("find {} pairs to compute".format(len(eval_examples)))
 
         eval_features = self.convert_examples_to_features(
             eval_examples, [self.__default_label], self.max_seq_length, self.tokenizer,0)
@@ -237,7 +236,7 @@ class SemanticRanker(object):
         simValues=[]
 
         for input_ids, input_mask, segment_ids in eval_dataloader:
-            logger.info("batch predicting")
+            #logger.info("batch predicting")
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
