@@ -1,4 +1,4 @@
-from programmingalpha.retrievers.semanticRanker import *
+from programmingalpha.retrievers.semantic_ranker import *
 import programmingalpha
 from torch.utils.data.distributed import DistributedSampler
 import random
@@ -277,5 +277,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource=""
+    dataSource="all"
     main()

@@ -1,15 +1,9 @@
-#!/usr/bin/env python3
-# Copyright 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
-"""Interactive mode for the tfidf DrQA retriever module."""
-
-import argparse
 import prettytable
 import logging
+from programmingalpha.retrievers.tfidf_doc_ranker import TfidfDocRanker
+from programmingalpha.retrievers.semantic_ranker import SemanticRanker
 from programmingalpha import retrievers
+
 from programmingalpha.DataSet import DBLoader
 import programmingalpha
 
@@ -20,24 +14,22 @@ console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
 
-parser = argparse.ArgumentParser()
-args = parser.parse_args()
 
 logger.info('Initializing ranker...')
 
 
 rankers={}
-rankers['stackoverflow']=retrievers.get_class('tfidf')('stackoverflow')
-rankers['AI']=retrievers.get_class('tfidf')('AI')
-rankers['datascience']=retrievers.get_class('tfidf')('datascience')
-rankers['crossvalidated']=retrievers.get_class('tfidf')('crossvalidated')
+rankers['stackoverflow']=TfidfDocRanker('stackoverflow')
+rankers['AI']=TfidfDocRanker('AI')
+rankers['datascience']=TfidfDocRanker('datascience')
+rankers['crossvalidated']=TfidfDocRanker('crossvalidated')
 KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 # Drop in to interactive
 # ------------------------------------------------------------------------------
 docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
 
-sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model.bin")
+sranker=SemanticRanker(programmingalpha.ModelPath+"/pytorch_model-1.bin")
 fetchEach=25
 
 def process(query, k=1):

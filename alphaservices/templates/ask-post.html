@@ -22,13 +22,13 @@
     Semantic Understanding Model sharing some weights of
     google Bert Base.
 </p>
-    <form action="/ask-post" method="post">
+    <form action="/polls/ask-post" method="post">
         {% csrf_token %}
         <input type="text" name="q">
         <input type="submit" value="Ask">
     </form>
 
-    <p>{{ answer }}</p>
+<p> <strong> {{ answer }} </strong> </p>
 
 <p>
     We hope to find some practical code workers of software academy or someone who holds pretty

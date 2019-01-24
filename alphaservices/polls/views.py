@@ -1,12 +1,13 @@
 from django.shortcuts import render
 from django.http import HttpResponse,HttpRequest
-#from .qamodel import process
-def process(q):return "No"
+from .qamodel import process
+#def process(q):return "No"
 # Create your views here.
 
 def index(request:HttpRequest):
-    msg="hello, welcome to programming alpoha for AI engineers and learners !!!"
-    return HttpResponse(msg)
+    #msg="hello, welcome to programming alpha for AI engineers and learners !!!"
+    #return HttpResponse(msg)
+    return render(request,"index.html")
 
 def getAnswer(request:HttpRequest):
     request.encoding='utf-8'
