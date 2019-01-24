@@ -277,5 +277,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="datascience"
+    dataSource=""
     main()
