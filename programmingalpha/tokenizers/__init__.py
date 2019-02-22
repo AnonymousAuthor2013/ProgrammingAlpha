@@ -1,51 +1,35 @@
-#!/usr/bin/env python3
-# Copyright 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
+from .tokenizer import CoreNLPTokenizer,SpacyTokenizer
+from pytorch_pretrained_bert.tokenization import BertTokenizer
+from pytorch_pretrained_bert.tokenization_gpt2 import GPT2Tokenizer
+from pytorch_pretrained_bert.tokenization_openai import OpenAIGPTTokenizer
+from pytorch_pretrained_bert.tokenization_transfo_xl import TransfoXLTokenizer
 
-import os
+def ngrams(words, n=1, uncased=False, filter_fn=None, as_strings=True):
+        """Returns a list of all ngrams from length 1 to n.
 
-DEFAULTS = {
-    'corenlp_classpath': os.getenv('CLASSPATH')
-}
+        Args:
+            n: upper limit of ngram length
+            uncased: lower cases text
+            filter_fn: user function that takes in an ngram list and returns
+              True or False to keep or not keep the ngram
+            as_string: return the ngram as a string vs list
+        """
 
+        def _skip(gram):
+            if not filter_fn:
+                return False
+            return filter_fn(gram)
 
-def set_default(key, value):
-    global DEFAULTS
-    DEFAULTS[key] = value
+        if uncased:
+            words =tuple(map(lambda s:s.lower(),words))
 
+        ngrams = [(s, e + 1)
+                  for s in range(len(words))
+                  for e in range(s, min(s + n, len(words)))
+                  if not _skip(words[s:e + 1])]
 
-from .corenlp_tokenizer import CoreNLPTokenizer
-from .bert_tokenizer import BertTokenizer
-# Spacy is optional
-try:
-    from .spacy_tokenizer import SpacyTokenizer
-except ImportError:
-    pass
+        # Concatenate into strings
+        if as_strings:
+            ngrams = ['{}'.format(' '.join(words[s:e])) for (s, e) in ngrams]
 
-
-def get_class(name):
-    if name == 'spacy':
-        return SpacyTokenizer
-    if name == 'corenlp':
-        return CoreNLPTokenizer
-    if name=='bert':
-        return BertTokenizer
-    raise RuntimeError('Invalid tokenizer: %s' % name)
-
-
-def get_annotators_for_args(args):
-    annotators = set()
-    if args.use_pos:
-        annotators.add('pos')
-    if args.use_lemma:
-        annotators.add('lemma')
-    if args.use_ner:
-        annotators.add('ner')
-    return annotators
-
-
-def get_annotators_for_model(model):
-    return get_annotators_for_args(model.args)
+        return ngrams

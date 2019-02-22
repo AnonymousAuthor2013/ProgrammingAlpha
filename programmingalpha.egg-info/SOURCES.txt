@@ -13,10 +13,8 @@ programmingalpha/Utility/CorrelationAnalysis.py
 programmingalpha/Utility/DataGenerator.py
 programmingalpha/Utility/WebCrawler.py
 programmingalpha/Utility/__init__.py
+programmingalpha/models/InferenceModels.py
 programmingalpha/models/__init__.py
-programmingalpha/models/modeling.py
-programmingalpha/models/optimization.py
-programmingalpha/models/pytorchBert.py
 programmingalpha/retrievers/__init__.py
 programmingalpha/retrievers/semantic_ranker.py
 programmingalpha/retrievers/tfidf_doc_ranker.py

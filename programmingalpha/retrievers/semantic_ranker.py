@@ -6,16 +6,13 @@ import json
 import os
 import logging
 import numpy as np
-import sys
-
+import random
 
 import programmingalpha
 import torch
 from torch.utils.data import TensorDataset, DataLoader, SequentialSampler
-
-
-from programmingalpha.tokenizers.bert_tokenizer import BertTokenizer
-from programmingalpha.models.modeling import BertForSemanticPrediction
+from programmingalpha.tokenizers import BertTokenizer
+from programmingalpha.models.InferenceModels import BertForSemanticPrediction
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -139,49 +136,186 @@ class SemanticPairProcessor(DataProcessor):
 
         return examples
 
+def _truncate_seq_pair(tokens_a, tokens_b, max_length):
+    """Truncates a sequence pair in place to the maximum length."""
 
+    # This is a simple heuristic which will always truncate the longer sequence
+    # one token at a time. This makes more sense than truncating an equal percent
+    # of tokens from each, since if one sequence is very short then each token
+    # that's truncated likely contains more information than a longer sequence.
+    while True:
+        total_length = len(tokens_a) + len(tokens_b)
+        if total_length <= max_length:
+            break
+        if len(tokens_a) > len(tokens_b):
+            tokens_a.pop()
+        else:
+            tokens_b.pop()
 
-def accuracy(out, labels):
-    outputs = np.argmax(out, axis=1)
-    return np.sum(outputs == labels)
+def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer,verbose=2):
+    """Loads a data file into a list of `InputBatch`s."""
 
-def mseError(out,values):
-    mse=np.sum(np.square(out-values))
-    return mse
+    label_map = {label : i for i, label in enumerate(label_list)}
 
-def warmup_linear(x, warmup=0.002):
-    if x < warmup:
-        return x/warmup
-    return 1.0 - x
+    features = []
+    for (ex_index, example) in enumerate(examples):
+        tokens_a = tokenizer.tokenize(example.text_a)
+
+        tokens_b = None
+        if example.text_b:
+            tokens_b = tokenizer.tokenize(example.text_b)
+            # Modifies `tokens_a` and `tokens_b` in place so that the total
+            # length is less than the specified length.
+            # Account for [CLS], [SEP], [SEP] with "- 3"
+            _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
+        else:
+            # Account for [CLS] and [SEP] with "- 2"
+            if len(tokens_a) > max_seq_length - 2:
+                tokens_a = tokens_a[:(max_seq_length - 2)]
+
+        # The convention in BERT is:
+        # (a) For sequence pairs:
+        #  tokens:   [CLS] is this jack ##son ##ville ? [SEP] no it is not . [SEP]
+        #  type_ids: 0   0  0    0    0     0       0 0    1  1  1  1   1 1
+        # (b) For single sequences:
+        #  tokens:   [CLS] the dog is hairy . [SEP]
+        #  type_ids: 0   0   0   0  0     0 0
+        #
+        # Where "type_ids" are used to indicate whether this is the first
+        # sequence or the second sequence. The embedding vectors for `type=0` and
+        # `type=1` were learned during pre-training and are added to the wordpiece
+        # embedding vector (and position vector). This is not *strictly* necessary
+        # since the [SEP] token unambigiously separates the sequences, but it makes
+        # it easier for the model to learn the concept of sequences.
+        #
+        # For classification tasks, the first vector (corresponding to [CLS]) is
+        # used as as the "sentence vector". Note that this only makes sense because
+        # the entire model is fine-tuned.
+        tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
+        segment_ids = [0] * len(tokens)
+
+        if tokens_b:
+            tokens += tokens_b + ["[SEP]"]
+            segment_ids += [1] * (len(tokens_b) + 1)
+
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
+        # The mask has 1 for real tokens and 0 for padding tokens. Only real
+        # tokens are attended to.
+        input_mask = [1] * len(input_ids)
+
+        # Zero-pad up to the sequence length.
+        padding = [0] * (max_seq_length - len(input_ids))
+        input_ids += padding
+        input_mask += padding
+        segment_ids += padding
+
+        assert len(input_ids) == max_seq_length
+        assert len(input_mask) == max_seq_length
+        assert len(segment_ids) == max_seq_length
+
+        label_id = label_map[example.label]
+        if ex_index < 5 and verbose>1:
+            logger.info("*** Example ***")
+            logger.info("guid: %s" % (example.guid))
+            logger.info("tokens: %s" % " ".join(
+                    [str(x) for x in tokens]))
+            logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+            logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+            logger.info(
+                    "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+            logger.info("label: %s (id = %d)" % (example.label, label_id))
+            logger.info("sim value: %d"%example.value)
+
+        features.append(
+                InputFeatures(input_ids=input_ids,
+                              input_mask=input_mask,
+                              segment_ids=segment_ids,
+                              label_id=label_id,
+                              value=example.value))
+
+        if verbose>0 and len(features)%100==0:
+            logger.info("loaded {} features".format(len(features)))
+
+    return features
 
 
 class SemanticRanker(object):
+    #running paprameters
+    server_ip=None
+    server_port=None
+
+    device="cuda"
+    no_cuda=False
+    gpu=-1
+    local_rank=-1
+    fp16=False
+    seed=42
+
     ## model parameters
     max_seq_length=128
     do_lower_case=True
-    eval_batch_size=8
-    use_cuda=True
-    cuda_rank=0
-    fp16=False
+    batch_size=8
+
     __default_label="0"
     __default_value=0
 
+    def initRunningConfig(self,model:BertForSemanticPrediction):
+        if self.server_ip and self.server_port:
+            # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
+            import ptvsd
+            print("Waiting for debugger attach")
+            ptvsd.enable_attach(address=(self.server_ip, self.server_port), redirect_output=True)
+            ptvsd.wait_for_attach()
+
+
+        if self.local_rank == -1 or self.no_cuda:
+            device = torch.device("cuda" if torch.cuda.is_available() and not self.no_cuda else "cpu")
+            n_gpu = torch.cuda.device_count()
+        else:
+            torch.cuda.set_device(self.local_rank)
+            device = torch.device("cuda", self.local_rank)
+            n_gpu = 1
+            # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+            torch.distributed.init_process_group(backend='nccl')
+        logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
+            device, n_gpu, bool(self.local_rank != -1), self.fp16))
+
+
+
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        torch.manual_seed(self.seed)
+        if n_gpu > 0:
+            torch.cuda.manual_seed_all(self.seed)
+
+        if self.fp16:
+            model.half()
+        model.to(device)
+        if self.local_rank != -1:
+            try:
+                from apex.parallel import DistributedDataParallel as DDP
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+
+            model = DDP(model)
+        elif n_gpu > 1:
+            model = torch.nn.DataParallel(model)
+
+        return model
+
     def __init__(self,model_dir):
 
-        self.device=torch.device("cuda")
         model_state_dict = torch.load(model_dir)
         model = BertForSemanticPrediction.from_pretrained(programmingalpha.BertBasePath,
                                                           state_dict=model_state_dict,
                                                           num_labels=4)
-        if self.fp16:
-            model.half()
-        model.to(self.device)
-        model = torch.nn.DataParallel(model,device_ids=[0,1])
-        self.model=model
+        self.model=self.initRunningConfig(model)
+
         #print(25*"*"+"loaded model"+"*"*25)
 
         self.tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath, do_lower_case=self.do_lower_case)
-        #logger.info("ranker model init finished!!!")
+        logger.info("ranker model init finished!!!")
 
     def getSemanticPair(self,query_doc,docs,doc_ids):
         examples=[]
@@ -206,7 +340,7 @@ class SemanticRanker(object):
         eval_examples=self.getSemanticPair(query_doc,doc_texts,doc_ids)
         #print("find {} pairs to compute".format(len(eval_examples)))
 
-        eval_features = self.convert_examples_to_features(
+        eval_features = convert_examples_to_features(
             eval_examples, [self.__default_label], self.max_seq_length, self.tokenizer,0)
         #logger.info("***** Running evaluation *****")
         #logger.info("  Num examples = %d", len(eval_examples))
@@ -255,107 +389,6 @@ class SemanticRanker(object):
         simValues=np.concatenate(simValues,axis=0)
         return logits,simValues
 
-    @staticmethod
-    def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer,verbose=2):
-        """Loads a data file into a list of `InputBatch`s."""
-
-        label_map = {label : i for i, label in enumerate(label_list)}
-
-        features = []
-        for (ex_index, example) in enumerate(examples):
-            tokens_a = tokenizer.tokenize(example.text_a).words()
-
-            tokens_b = None
-            if example.text_b:
-                tokens_b = tokenizer.tokenize(example.text_b).words()
-                # Modifies `tokens_a` and `tokens_b` in place so that the total
-                # length is less than the specified length.
-                # Account for [CLS], [SEP], [SEP] with "- 3"
-                _truncate_seq_pair(tokens_a, tokens_b, max_seq_length - 3)
-            else:
-                # Account for [CLS] and [SEP] with "- 2"
-                if len(tokens_a) > max_seq_length - 2:
-                    tokens_a = tokens_a[:(max_seq_length - 2)]
-
-            # The convention in BERT is:
-            # (a) For sequence pairs:
-            #  tokens:   [CLS] is this jack ##son ##ville ? [SEP] no it is not . [SEP]
-            #  type_ids: 0   0  0    0    0     0       0 0    1  1  1  1   1 1
-            # (b) For single sequences:
-            #  tokens:   [CLS] the dog is hairy . [SEP]
-            #  type_ids: 0   0   0   0  0     0 0
-            #
-            # Where "type_ids" are used to indicate whether this is the first
-            # sequence or the second sequence. The embedding vectors for `type=0` and
-            # `type=1` were learned during pre-training and are added to the wordpiece
-            # embedding vector (and position vector). This is not *strictly* necessary
-            # since the [SEP] token unambigiously separates the sequences, but it makes
-            # it easier for the model to learn the concept of sequences.
-            #
-            # For classification tasks, the first vector (corresponding to [CLS]) is
-            # used as as the "sentence vector". Note that this only makes sense because
-            # the entire model is fine-tuned.
-            tokens = ["[CLS]"] + tokens_a + ["[SEP]"]
-            segment_ids = [0] * len(tokens)
-
-            if tokens_b:
-                tokens += tokens_b + ["[SEP]"]
-                segment_ids += [1] * (len(tokens_b) + 1)
-
-            input_ids = tokenizer.convert_tokens_to_ids(tokens)
-
-            # The mask has 1 for real tokens and 0 for padding tokens. Only real
-            # tokens are attended to.
-            input_mask = [1] * len(input_ids)
-
-            # Zero-pad up to the sequence length.
-            padding = [0] * (max_seq_length - len(input_ids))
-            input_ids += padding
-            input_mask += padding
-            segment_ids += padding
-
-            assert len(input_ids) == max_seq_length
-            assert len(input_mask) == max_seq_length
-            assert len(segment_ids) == max_seq_length
-
-            label_id = label_map[example.label]
-            if ex_index < 5 and verbose>1:
-                logger.info("*** Example ***")
-                logger.info("guid: %s" % (example.guid))
-                logger.info("tokens: %s" % " ".join(
-                        [str(x) for x in tokens]))
-                logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                logger.info(
-                        "segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
-                logger.info("label: %s (id = %d)" % (example.label, label_id))
-                logger.info("sim value: %d"%example.value)
-
-            features.append(
-                    InputFeatures(input_ids=input_ids,
-                                  input_mask=input_mask,
-                                  segment_ids=segment_ids,
-                                  label_id=label_id,
-                                  value=example.value))
-
-            if verbose>0 and len(features)%100==0:
-                logger.info("loaded {} features".format(len(features)))
-
-        return features
 
 
-def _truncate_seq_pair(tokens_a, tokens_b, max_length):
-    """Truncates a sequence pair in place to the maximum length."""
 
-    # This is a simple heuristic which will always truncate the longer sequence
-    # one token at a time. This makes more sense than truncating an equal percent
-    # of tokens from each, since if one sequence is very short then each token
-    # that's truncated likely contains more information than a longer sequence.
-    while True:
-        total_length = len(tokens_a) + len(tokens_b)
-        if total_length <= max_length:
-            break
-        if len(tokens_a) > len(tokens_b):
-            tokens_a.pop()
-        else:
-            tokens_b.pop()
