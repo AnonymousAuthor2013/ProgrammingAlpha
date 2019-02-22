@@ -1,6 +1,6 @@
 from tqdm import tqdm
 import argparse
-from programmingalpha.DataSet.DBLoader import MongoStackExchange,connectToMongoDB
+from programmingalpha.DataSet.DBLoader import MongoStackExchange,MongodbAuth
 from multiprocessing.dummy import Pool as ThreadPool
 from programmingalpha.Utility.DataGenerator import batchGenerator
 ####################data handler###################
@@ -9,7 +9,7 @@ from programmingalpha.Utility.DataGenerator import batchGenerator
 def initPool(dbName):
     global db
 
-    db=connectToMongoDB()
+    db=MongoStackExchange(**MongodbAuth)
     db.useDB(dbName)
 
 def constructQA(q):
@@ -100,7 +100,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
 
-    initPool()
+    initPool("stackoverflow")
     if db.stackdb.name!='stackoverflow':
         m_tag=[]
         for tag in db.tags.find():

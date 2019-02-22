@@ -21,3 +21,9 @@ class PreprocessPostContent(object):
 
         return snippets
 
+if __name__ == '__main__':
+    s="<neural-networks><backpropagation><terminology><definitions>"
+    pros=PreprocessPostContent()
+    print(pros.getPlainTxt(s))
+    print(", ".join(s.replace("<","").replace(">"," ").strip().split(" ")))
+    print(s)

@@ -138,21 +138,21 @@ class MongoWikiDoc(MongoDbConnector,DocDB):
     def __init__(self,host,port,user,passwd):
         MongoDbConnector.__init__(self,host,port,user,passwd)
 
-    def useDB(self,dbName="wikidocs"):
+    def useDB(self,dbName="wikipedia"):
         super(MongoWikiDoc, self).useDB(dbName)
 
         self.wikidb=self.client[dbName]
         self.initData()
 
     def initData(self):
-        self.docs=self.wikidb["articles"]
+        self.docs=self.wikidb["pages"]
         #self.tags=self.wikidb[""]
 
     def setDocCollection(self,collectionName):
         self.docDB=self.wikidb[collectionName]
 
     def get_doc_text(self,doc_id,text_paragraphs=100):
-        doc_json=self.docDB.find_one({"Id":doc_id})
+        doc_json=self.docDB.find_one({"id":doc_id})
         doc=["Title=>",doc_json["Title"]]
         if text_paragraphs>0:
             text=self.filterNILStr(doc_json["text"])[1:text_paragraphs]
@@ -166,13 +166,14 @@ class MongoWikiDoc(MongoDbConnector,DocDB):
     def get_doc_ids(self):
         doc_ids=[]
         for doc in self.docDB.find().batch_size(10000):
-            doc_ids.append(doc["Id"])
+            doc_ids.append(doc["id"])
         return doc_ids
 
 
 if __name__ == '__main__':
     db=MongoStackExchange(**MongodbAuth)
     db.useDB("stackoverflow")
-    db.setDocCollection("QAPForAI")
+    print(db.questions.count())
+    db.setDocCollection("QAForAI")
     text=db.get_doc_text(1083,chunk_answer=0)
     print(text)

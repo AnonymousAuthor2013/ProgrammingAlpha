@@ -198,7 +198,7 @@ if __name__ == '__main__':
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
 
-    dbName='wikidocs'
+    dbName='wikipedia'
 
     logging.info('Counting words...')
     count_matrix, doc_dict = get_count_matrix(args)

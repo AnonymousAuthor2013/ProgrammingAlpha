@@ -16,7 +16,10 @@ def getAnswer(request:HttpRequest):
     if 'q' in request.POST:
         question=request.POST['q']
         message = 'the quetsion you asked is ' + question
-        ans=process(question)
+        if question and question.strip()!='':
+            ans=process(question)
+        else:
+            ans='cannot answer blank questions!!!'
         #ans=escape(ans)
     else:
         message = 'cannot answer blank questions!!!'

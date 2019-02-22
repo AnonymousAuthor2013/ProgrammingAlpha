@@ -4,6 +4,7 @@ from xml.sax import ContentHandler as xmlContentHandler
 import json
 import argparse
 import collections
+import regex as re
 
 class PostLinkHandler(xmlContentHandler):
 
@@ -74,6 +75,8 @@ class PostHandler(xmlContentHandler):
         self.__ptr=0
         self.path=None
 
+        self.plainText=lambda text:", ".join(text.replace("<","").replace(">"," ").strip().split(" "))
+
     def startDocument(self):
         self.__ptr=0
         self.__fileAns= open(file=self.path+"/Answers.json",mode="w",encoding="utf-8")
@@ -104,9 +107,14 @@ class PostHandler(xmlContentHandler):
                         x[attr]=unescape(attributes[attr])
                     else:
                         x[attr]=int(attributes[attr])
+
                 except:
                     print(attr,attributes[attr])
                     exit(10)
+
+            del x["PostTypeId"]
+            if 1==int(attributes["PostTypeId"]):
+                x["Tags"]=self.plainText(x["Tags"])
             x=json.dumps(x)+"\n"
 
             if 1==int(attributes["PostTypeId"]):
@@ -197,9 +205,9 @@ class TagHandler(xmlContentHandler):
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
-    parser.add_argument("--xmlfile",type=str,help="input xml file to parse",default="testdata/posts.xml")
-    parser.add_argument("--path",type=str,help="output dir for parsed results",default='testdata/')
-    parser.add_argument("--method",type=int,help="1 for postlinks, 2 for posts, 3 for tags",default=1)
+    parser.add_argument("--xmlfile",type=str,help="input xml file to parse",default="../../testdata/posts.xml")
+    parser.add_argument("--path",type=str,help="output dir for parsed results",default='../../testdata/')
+    parser.add_argument("--method",type=int,help="1 for postlinks, 2 for posts, 3 for tags",default=2)
 
     args=parser.parse_args()
     xmlfile=args.xmlfile
