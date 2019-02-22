@@ -1,8 +1,9 @@
 from pytorch_pretrained_bert import BertModel
+from pytorch_pretrained_bert.modeling import BertPreTrainedModel
 from torch.nn import CrossEntropyLoss,MSELoss
 from torch import nn
 
-class BertForSemanticPrediction(BertModel):
+class BertForSemanticPrediction(BertPreTrainedModel):
 
     def __init__(self, config, num_labels):
         super(BertForSemanticPrediction, self).__init__(config)

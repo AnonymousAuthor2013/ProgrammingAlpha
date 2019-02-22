@@ -20,7 +20,4 @@ programmingalpha/retrievers/semantic_ranker.py
 programmingalpha/retrievers/tfidf_doc_ranker.py
 programmingalpha/retrievers/utils.py
 programmingalpha/tokenizers/__init__.py
-programmingalpha/tokenizers/bert_tokenizer.py
-programmingalpha/tokenizers/corenlp_tokenizer.py
-programmingalpha/tokenizers/spacy_tokenizer.py
 programmingalpha/tokenizers/tokenizer.py

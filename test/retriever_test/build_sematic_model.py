@@ -4,14 +4,20 @@ import random
 import argparse
 from tqdm import tqdm, trange
 from pytorch_pretrained_bert.optimization import BertAdam
-from torch.utils.data import RandomSampler
 from programmingalpha.models.InferenceModels import BertForSemanticPrediction
 from pytorch_pretrained_bert.optimization import warmup_linear
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
                               TensorDataset)
+import torch
 from torch.utils.data.distributed import DistributedSampler
 from pytorch_pretrained_bert.modeling import BertConfig
+
+logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt = '%m/%d/%Y %H:%M:%S',
+                    level = logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 def accuracy(out, labels):
     outputs = np.argmax(out, axis=1)
@@ -24,7 +30,7 @@ def main():
 
     ## Required parameters
     parser.add_argument("--model_name",
-                        default="BertBaseInference"+ "" if not dataSource or dataSource=="" else "-"+dataSource,
+                        default="BertBaseInference"+ ("" if not dataSource or dataSource=="" else "-"+dataSource),
                         type=str,
                         #required=True,
                         help="The name of the model.")
@@ -103,7 +109,7 @@ def main():
                         help="random seed for initialization")
     parser.add_argument('--gradient_accumulation_steps',
                         type=int,
-                        default=1,
+                        default=10,
                         help="Number of updates steps to accumulate before performing a backward/update pass.")
     parser.add_argument('--fp16',
                         action='store_true',
@@ -117,8 +123,10 @@ def main():
     parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
     args = parser.parse_args()
 
+    if not args.do_train and not args.do_eval:
+        args.do_train, args.do_eval=True,True
 
-    loss_partial=[1,5]
+    loss_partial=[1,1]
 
     processors = {
         "semantic": SemanticPairProcessor,
@@ -156,7 +164,7 @@ def main():
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train:
-        if input("Output directory ({}) already exists and is not empty, rewrite the files?(Y/N)") not in ("Y","y"):
+        if input("Output directory ({}) already exists and is not empty, rewrite the files?(Y/N)\n".format(args.output_dir)) not in ("Y","y"):
             raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -238,14 +246,13 @@ def main():
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)
         logger.info("  Num steps = %d", num_train_optimization_steps)
-
         all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
         all_sim_values=torch.tensor([f.simValue for f in train_features],dtype=torch.float)
-        #print("train",all_sim_values.size(),all_label_ids.size(),all_segment_ids.size(),all_input_mask.size(),all_input_ids.size())
         train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
+
 
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
@@ -260,6 +267,13 @@ def main():
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
                 input_ids, input_mask, segment_ids, label_ids, sim_values = batch
+
+                input_ids=input_ids.to(device)
+                input_mask=input_mask.to(device)
+                segment_ids=segment_ids.to(device)
+                label_ids=label_ids.to(device)
+                sim_values=sim_values.to(device)
+
                 loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
                 loss=loss_partial[0]*loss[0]+loss_partial[1]*loss[1]
 
@@ -301,9 +315,12 @@ def main():
         model = BertForSemanticPrediction(config, num_labels=num_labels)
         model.load_state_dict(torch.load(output_model_file))
     else:
-        model = BertForSemanticPrediction.from_pretrained(args.bert_model, num_labels=num_labels)
-
-    sranker=SemanticRanker(os.path.join(args.output_dir, args.model_name+".bin"))
+        #model = BertForSemanticPrediction.from_pretrained(args.bert_model, num_labels=num_labels)
+        model= BertForSemanticPrediction(BertConfig(os.path.join(args.output_dir,args.model_name+".json")), num_labels=num_labels)
+        logger.info("loading weights for model {}".format(args.model_name))
+        model.load_state_dict(torch.load(os.path.join(args.output_dir,args.model_name+".bin")))
+    model.to(device)
+    sranker=SemanticRanker(args.output_dir,args.model_name)
 
 
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
@@ -319,7 +336,7 @@ def main():
         all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
         all_sim_values=torch.tensor([f.simValue for f in eval_features],dtype=torch.float)
 
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
         test_data=TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
 
         # Run prediction for full data
@@ -339,12 +356,12 @@ def main():
         eval_loss, eval_accuracy, eval_error = 0, 0, 0
         nb_eval_steps, nb_eval_examples = 0, 0
         i=0
-        for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
+        for input_ids, input_mask, segment_ids, label_ids,sim_values in tqdm(eval_dataloader, desc="Evaluating"):
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
             label_ids = label_ids.to(device)
-
+            sim_values=sim_values.to(device)
             with torch.no_grad():
                 tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
                 #logits = model(input_ids, segment_ids, input_mask)
@@ -391,5 +408,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="AI"
+    dataSource="datascience"
     main()
