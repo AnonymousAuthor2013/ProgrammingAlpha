@@ -59,7 +59,7 @@ def createkeysForWikiDocs():
     tmp_collection.create_index("Id")
 
 
-def distinctMove(src,dst):
+def distinctMoveWiki(src,dst):
     db=MongoWikiDoc(**MongodbAuth)
     db.useDB("wikidocs")
     id_set=set()
@@ -83,6 +83,33 @@ def distinctMove(src,dst):
 
     print("count after distinct",dst_collection.count())
 
+def distinctMoveStack(src,dst):
+    db=MongoStackExchange("10.1.1.9","36666")
+    db.useDB("stackoverflow")
+    id_set=set()
+
+    dst_collection=db.stackdb[dst]
+    src_collection=db.stackdb[src]
+
+    insert_cache=[]
+    print("count before distinct",src_collection.count())
+
+    for doc in src_collection.find().batch_size(10000):
+        if doc["Id"] in id_set:
+            continue
+        id_set.add(doc["Id"])
+        insert_cache.append(doc)
+        if len(insert_cache)%10000==0:
+            dst_collection.insert_many(insert_cache)
+            insert_cache.clear()
+            print("process {}/{}".format(dst_collection.count(),src_collection.count()))
+    if len(insert_cache)>0:
+        dst_collection.insert_many(insert_cache)
+        print("process {}/{}".format(dst_collection.count(),src_collection.count()))
+
+
+    print("count after distinct",dst_collection.count())
+
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
     parser.add_argument('--mongodb', type=str, help='mongodb host, e.g. mongodb://10.1.1.9:27017/',default='mongodb://10.1.1.9:27017/')
@@ -95,4 +122,5 @@ if __name__ == '__main__':
     #createkeysForWikiDocs()
     #splitTags()
 
-    distinctMove("categories","tmp_tags")
+    #distinctMoveWiki("categories","tmp_tags")
+    distinctMoveStack("questions_tmp","questions_unique")

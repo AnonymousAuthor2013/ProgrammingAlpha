@@ -1,5 +1,8 @@
 import json
 import pexpect
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 class Tokenizer(object):
     def tokenize(self):
@@ -20,7 +23,7 @@ class CoreNLPTokenizer(object):
         #for file in `find /home/zhangzy/stanford-corenlp-full-2018-10-05/ -name "*.jar"`; do export
         #CLASSPATH="$CLASSPATH:`realpath $file`"; done
         import os
-        path="/home/zhangzy/stanford-corenlp-full-2018-10-05/"
+        path="/home/LAB/zhangzy/stanford-corenlp-full-2018-10-05/"
         files=os.listdir(path)
         jars=[]
         for f in files:
@@ -30,7 +33,7 @@ class CoreNLPTokenizer(object):
         self.classpath = ":".join(jars)
         self.mem = "4g"
         self._launch()
-        print("init core_nlp tokenizer finished!")
+        logger.info("init core_nlp tokenizer finished!")
 
     def _launch(self):
         """Start the CoreNLP jar with pexpect."""
@@ -112,7 +115,7 @@ class SpacyTokenizer(object):
         nlp_kwargs['tagger'] = False
         nlp_kwargs['entity'] = False
         self.nlp = spacy.load(model, **nlp_kwargs)
-        print("init spacy tokenizer finished!")
+        logger.info("init spacy tokenizer finished!")
 
     def tokenize(self, text):
         # We don't treat new lines as tokens.

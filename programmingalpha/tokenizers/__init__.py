@@ -33,3 +33,20 @@ def ngrams(words, n=1, uncased=False, filter_fn=None, as_strings=True):
             ngrams = ['{}'.format(' '.join(words[s:e])) for (s, e) in ngrams]
 
         return ngrams
+
+
+def get_class(name):
+    if name == 'corenlp':
+        return CoreNLPTokenizer
+    if name == 'spacy':
+        return SpacyTokenizer
+    if name=='bert':
+        return BertTokenizer
+    if name=='gpt2':
+        return GPT2Tokenizer
+    if name=='openai':
+        return OpenAIGPTTokenizer
+    if name=='transformerXL':
+        return TransfoXLTokenizer
+
+    raise RuntimeError('Invalid retriever class: %s' % name)

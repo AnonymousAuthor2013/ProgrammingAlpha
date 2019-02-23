@@ -1,7 +1,7 @@
 import prettytable
 import logging
 from programmingalpha.retrievers.tfidf_doc_ranker import TfidfDocRanker
-from programmingalpha.retrievers.semantic_ranker import SemanticRanker
+from programmingalpha.retrievers.bert_doc_ranker import SemanticRanker
 from programmingalpha import retrievers
 
 from programmingalpha.DataSet import DBLoader

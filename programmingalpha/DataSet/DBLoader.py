@@ -1,12 +1,19 @@
 import pymongo
 from urllib.parse import quote_plus
-from programmingalpha.DataSet import *
 from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
 
+
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 class MongoDbConnector(object):
-    def __init__(self,host,port,user,passwd):
-        url = "mongodb://%s:%s@%s:%d" % (
+    def __init__(self,host,port,user=None,passwd=None):
+        if user is not None:
+            url = "mongodb://%s:%s@%s:%d" % (
                 quote_plus(user), quote_plus(passwd), host,port)
+        else:
+            url="mongodb://%s:%s"%(host,port)
 
         self.client=pymongo.MongoClient(url)
 
@@ -28,83 +35,64 @@ class DocDB(object):
     def initData(self):
         raise NotImplementedError
 
-    def setDocCollection(self,collectionName):
+    def __setDocCollection(self,collectionName):
         raise NotImplementedError
 
-    def get_doc_text(self,doc_id,**kwargs):
+    def get_doc_text(self,collectionName, doc_id, **kwargs):
         raise NotImplementedError
 
-    def get_doc_ids(self):
+    def get_doc_ids(self,collectionName):
         raise NotImplementedError
 
 
 class MongoStackExchange(MongoDbConnector,DocDB):
     textExtractor=PreprocessPostContent()
-    def __init__(self,host,port,user,passwd):
+    def __init__(self,host,port,user=None,passwd=None):
 
         MongoDbConnector.__init__(self,host,port,user,passwd)
 
     def initData(self):
         self.questions=self.stackdb["questions"]
         self.answers=self.stackdb["answers"]
-        self.tags=self.stackdb["tags"]
-        self.postlinks=self.stackdb["postlinks"]
 
     def useDB(self,dbName):
         super(MongoStackExchange,self).useDB(dbName)
-
         self.stackdb=self.client[dbName]
         self.initData()
-
         return True
 
-
-
     #for doc retrival interface
-    def setDocCollection(self,collectionName):
+    def __setDocCollection(self,collectionName):
         self.docs=self.stackdb[collectionName]
-    def get_doc_text(self,doc_id,chunk_title=100,chunk_answer=100):
+
+    def get_doc_text(self, collectionName, doc_id, is_question=True, chunk_size = 20):
+        self.__setDocCollection(collectionName)
         doc_json=self.docs.find_one({"Id":doc_id})
+
         if doc_json is None:
-            print("error found none",self.stackdb.name,self.docs.name,doc_id)
+            logger.info("error found none in db:{}, doc_id:{}".format(self.stackdb.name,self.docs.name,doc_id))
             return None
 
-        title=self.textExtractor.getPlainTxt(doc_json["question_title"])
-        title='\n'.join(self.filterNILStr(title))
+        if is_question:
+            doc="\n".join([doc_json["Title"],doc_json["Body"]])
+        else:
+            doc=doc_json["Body"]
 
-        doc=["Title=>",title]
 
-        if chunk_title>0:
-            doc_title=self.textExtractor.getPlainTxt(doc_json["question_body"])
-            doc_title='\n'.join(self.filterNILStr(doc_title)[:chunk_title])
-            doc.extend(["Decription=>",doc_title])
-        if chunk_answer>0:
-            doc_answer=self.textExtractor.getPlainTxt(doc_json["answer_body"])
-            doc_answer='\n'.join(self.filterNILStr(doc_answer)[:chunk_answer])
-            doc.extend(["Answer=>",doc_answer])
-
-        doc='\n'.join(doc)
+        if chunk_size>0:
+            doc=self.textExtractor.getPlainTxt(doc)
+            doc='\n'.join(self.filterNILStr(doc)[:chunk_size])
 
         return doc
 
-    def get_doc_ids(self):
+    def get_doc_ids(self,collectionsName):
+        self.__setDocCollection(collectionsName)
         doc_ids=[]
         for doc in self.docs.find():
             doc_ids.append(doc["Id"])
         return doc_ids
 
-#stackexchange site methods
-    def getPopTags(self,ratio=0.1,need_num=2000):
-        all_tags=self.tags.find().sort("Count",pymongo.DESCENDING)
-        pop_tags=[]
-        need_num=min(ratio*all_tags.count(),need_num)
-        i=0
-        for x in all_tags:
-            pop_tags.append(u"<"+x["TagName"]+u">")
-            i+=1
-            if i>=need_num:
-                break
-        return set(pop_tags)
+
 
 
     def getBatchAcceptedQIds(self,batch_size=1000,query=None):
@@ -135,7 +123,7 @@ class MongoStackExchange(MongoDbConnector,DocDB):
 
 
 class MongoWikiDoc(MongoDbConnector,DocDB):
-    def __init__(self,host,port,user,passwd):
+    def __init__(self,host,port,user=None,passwd=None):
         MongoDbConnector.__init__(self,host,port,user,passwd)
 
     def useDB(self,dbName="wikipedia"):
@@ -145,35 +133,37 @@ class MongoWikiDoc(MongoDbConnector,DocDB):
         self.initData()
 
     def initData(self):
-        self.docs=self.wikidb["pages"]
+        self.pages=self.wikidb["pages"]
         #self.tags=self.wikidb[""]
 
-    def setDocCollection(self,collectionName):
-        self.docDB=self.wikidb[collectionName]
+    def __setDocCollection(self,collectionName):
+        self.docs=self.wikidb[collectionName]
 
-    def get_doc_text(self,doc_id,text_paragraphs=100):
-        doc_json=self.docDB.find_one({"id":doc_id})
-        doc=["Title=>",doc_json["Title"]]
-        if text_paragraphs>0:
-            text=self.filterNILStr(doc_json["text"])[1:text_paragraphs]
-            text='\n'.join(text)
-            doc.extend(["Text=>",text])
+    def get_doc_text(self,collectionName, doc_id, chunk_size=5):
+        self.setDocCollection(collectionName)
+        doc_json=self.docs.find_one({"id":doc_id})
 
-        doc='\n'.join(doc)
+        doc=doc_json["text"]
+
+        if chunk_size>0:
+            doc=self.filterNILStr(doc)[1:chunk_size]
+            doc='\n'.join(doc)
+
 
         return doc
 
-    def get_doc_ids(self):
+    def get_doc_ids(self,collectionName):
+        self.__setDocCollection(collectionName)
         doc_ids=[]
-        for doc in self.docDB.find().batch_size(10000):
+        for doc in self.docs.find().batch_size(10000):
             doc_ids.append(doc["id"])
         return doc_ids
 
 
 if __name__ == '__main__':
-    db=MongoStackExchange(**MongodbAuth)
+    db=MongoStackExchange(host='10.1.1.9',port='36666')
     db.useDB("stackoverflow")
     print(db.questions.count())
-    db.setDocCollection("QAForAI")
-    text=db.get_doc_text(1083,chunk_answer=0)
+
+    text=db.get_doc_text(collectionName="questions",doc_id=1083,chunk_size=10)
     print(text)

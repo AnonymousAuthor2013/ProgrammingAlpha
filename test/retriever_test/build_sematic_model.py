@@ -1,4 +1,4 @@
-from programmingalpha.retrievers.semantic_ranker import *
+from programmingalpha.retrievers.bert_doc_ranker import *
 import programmingalpha
 import random
 import argparse
@@ -57,7 +57,7 @@ def main():
 
     ## Other parameters
     parser.add_argument("--cache_dir",
-                        default="",
+                        default=None,
                         type=str,
                         help="Where do you want to store the pre-trained models downloaded from s3")
     parser.add_argument("--max_seq_length",
@@ -135,6 +135,13 @@ def main():
     num_labels_task = {
         "semantic": 4,
     }
+    #args.server_ip,args.server_port= "192.168.5.183","22"
+    if args.server_ip and args.server_port:
+        # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
+        import ptvsd
+        print("Waiting for debugger attach")
+        ptvsd.enable_attach(address=(args.server_ip, args.server_port), redirect_output=True)
+        ptvsd.wait_for_attach()
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
@@ -151,6 +158,8 @@ def main():
     if args.gradient_accumulation_steps < 1:
         raise ValueError("Invalid gradient_accumulation_steps parameter: {}, should be >= 1".format(
                             args.gradient_accumulation_steps))
+    else:
+        logger.info("gradient_accumulation_steps {}".format(args.gradient_accumulation_steps))
 
     args.train_batch_size = args.train_batch_size // args.gradient_accumulation_steps
 
@@ -192,7 +201,7 @@ def main():
     # Prepare model
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, 'distributed_{}'.format(args.local_rank))
     model = BertForSemanticPrediction.from_pretrained(args.bert_model,
-              cache_dir=cache_dir,
+              #cache_dir=cache_dir,
               num_labels = num_labels)
     if args.fp16:
         model.half()
@@ -275,6 +284,7 @@ def main():
                 sim_values=sim_values.to(device)
 
                 loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
+                #logger.info("loss:{}({},{}), and loss_partial:{}".format(loss,loss[0],loss[1],loss_partial))
                 loss=loss_partial[0]*loss[0]+loss_partial[1]*loss[1]
 
                 if n_gpu > 1:
@@ -408,5 +418,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="datascience"
+    dataSource="all"
     main()

@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import json
 import os
-import logging
 import numpy as np
 import random
 
@@ -18,6 +17,7 @@ from tqdm import tqdm, trange
 from multiprocessing import Pool as ProcessPool
 from functools import partial
 
+import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -244,8 +244,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
         results=workers.map(_convertCore,batch)
         features.extend(results)
 
-        if verbose>0 and len(features)%batch_size==0:
-            logger.info("loaded {} features".format(len(features)))
+        #if verbose>0 and len(features)%batch_size==0:
+        #    logger.info("loaded {} features".format(len(features)))
+
     logger.info("loaded {} features".format(len(features)))
 
     workers.close()
@@ -279,7 +280,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
             logger.info(
                     "segment_ids: %s" % " ".join([str(x) for x in features[ex_index].segment_ids]))
             logger.info("label: %s (id = %d)" % (example.label, features[ex_index].label_id))
-            logger.info("sim value: %s (id = %d)" % (example.label, features[ex_index].simValue))
+            logger.info("sim value: %d" % (features[ex_index].simValue))
 
 
     return features

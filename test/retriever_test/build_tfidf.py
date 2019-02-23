@@ -21,7 +21,7 @@ from collections import Counter
 from programmingalpha import retrievers
 from programmingalpha import tokenizers
 import programmingalpha
-from programmingalpha.DataSet.DBLoader import MongodbAuth,MongoStackExchange,MongoWikiDoc
+from programmingalpha.DataSet.DBLoader import MongoStackExchange,MongoWikiDoc
 
 
 logger = logging.getLogger()
@@ -31,7 +31,6 @@ console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
 
-from programmingalpha.tokenizers.bert_tokenizer import BertTokenizer
 # ------------------------------------------------------------------------------
 # Multiprocessing functions
 # ------------------------------------------------------------------------------
@@ -45,27 +44,25 @@ def init(tokenizer_class):
     global PROCESS_TOK, PROCESS_DB
     PROCESS_TOK = tokenizer_class()
     Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
-    PROCESS_DB=MongoStackExchange(**MongodbAuth)
+    PROCESS_DB=MongoStackExchange(host='10.1.1.9',port='36666')
     PROCESS_DB.useDB(dbName)
-    PROCESS_DB.setDocCollection(retrievers.WorkingDocCollection)
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
 
 def initWiki(tokenizer_class):
     global PROCESS_TOK, PROCESS_DB
     PROCESS_TOK = tokenizer_class()
     Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
-    PROCESS_DB=MongoWikiDoc(**MongodbAuth)
+    PROCESS_DB=MongoWikiDoc(host='10.1.1.9',port='36666')
     PROCESS_DB.useDB(dbName)
-    PROCESS_DB.setDocCollection("articles")
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
 
 def fetch_text(doc_id):
     global PROCESS_DB
-    return PROCESS_DB.get_doc_text(doc_id,chunk_answer=0)
+    return PROCESS_DB.get_doc_text(collectionName=collectionName,doc_id=doc_id)
 
 def fetch_text_wiki(doc_id):
     global PROCESS_DB
-    return PROCESS_DB.get_doc_text(doc_id,text_paragraphs=5)
+    return PROCESS_DB.get_doc_text(collectionName=collectionName,doc_id=doc_id)
 
 def tokenize(text):
     global PROCESS_TOK
@@ -84,7 +81,7 @@ def count(ngram, hash_size, doc_id):
     tokens = tokenize(retrievers.utils.normalize(fetch_text_wiki(doc_id)))
 
     # Get ngrams from tokens, with stopword/punctuation filtering.
-    ngrams = tokens.ngrams(
+    ngrams = tokenizers.ngrams(words=tokens,
         n=ngram, uncased=True, filter_fn=retrievers.utils.filter_ngram
     )
 
@@ -106,12 +103,19 @@ def get_count_matrix(args):
     # Map doc_ids to indexes
     global DOC2IDX
 
-    doc_db=MongoWikiDoc(**MongodbAuth)
+    doc_db=MongoWikiDoc(host='10.1.1.9',port='36666')
     doc_db.useDB(dbName)
     doc_ids=[]
-    for doc in doc_db.wikidb.get_collection('articles').find():
-        DOC2IDX[doc["Id"]]=len(DOC2IDX)
-        doc_ids.append(doc["Id"])
+
+    if 'wiki' in collectionName:
+        id_key="id"
+    else:
+        id_key="Id"
+
+    for doc in doc_db.wikidb.get_collection(collectionName).find():
+        DOC2IDX[doc[id_key]]=len(DOC2IDX)
+        doc_ids.append(doc[id_key])
+
     # Setup worker pool
     tok_class = tokenizers.get_class(args.tokenizer)
     workers = ProcessPool(
@@ -199,6 +203,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     dbName='wikipedia'
+    collectionName='pages'
 
     logging.info('Counting words...')
     count_matrix, doc_dict = get_count_matrix(args)

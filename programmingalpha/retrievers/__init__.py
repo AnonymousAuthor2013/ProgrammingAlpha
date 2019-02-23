@@ -1,7 +1,7 @@
 from . import utils
 from ..DataSet.DBLoader import MongoStackExchange
 from .tfidf_doc_ranker import TfidfDocRanker
-from .semantic_ranker import SemanticRanker
+from .bert_doc_ranker import SemanticRanker
 
 WorkingDocCollection="QAPForAI"
 
