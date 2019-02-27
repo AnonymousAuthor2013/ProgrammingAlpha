@@ -94,9 +94,10 @@ class SemanticPairProcessor(DataProcessor):
         }
     def get_train_examples(self, data_dir):
         """See base class."""
-        data_file="train-"+self.sourcePair+".txt"
         if self.sourcePair is None or self.sourcePair=="":
-            data_file="train.txt"
+            data_file="train.json"
+        else:
+            data_file="train-"+self.sourcePair+".json"
 
         logger.info("LOOKING AT {}".format(os.path.join(data_dir, data_file)))
         return self._create_examples(
@@ -104,9 +105,11 @@ class SemanticPairProcessor(DataProcessor):
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        data_file="test-"+self.sourcePair+".txt"
         if self.sourcePair is None or self.sourcePair=="":
-            data_file="test.txt"
+            data_file="test.json"
+        else:
+            data_file="test-"+self.sourcePair+".json"
+
 
         return self._create_examples(
             self._read_json(os.path.join(data_dir, data_file)), "dev")

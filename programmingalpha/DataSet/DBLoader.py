@@ -10,10 +10,10 @@ logger.setLevel(logging.INFO)
 class MongoDbConnector(object):
     def __init__(self,host,port,user=None,passwd=None):
         if user is not None:
-            url = "mongodb://%s:%s@%s:%d" % (
+            url = "mongodb://{}:{}@{}:{}".format (
                 quote_plus(user), quote_plus(passwd), host,port)
         else:
-            url="mongodb://%s:%s"%(host,port)
+            url="mongodb://{}:{}".format(host,port)
 
         self.client=pymongo.MongoClient(url)
 
@@ -140,7 +140,7 @@ class MongoWikiDoc(MongoDbConnector,DocDB):
         self.docs=self.wikidb[collectionName]
 
     def get_doc_text(self,collectionName, doc_id, chunk_size=5):
-        self.setDocCollection(collectionName)
+        self.__setDocCollection(collectionName)
         doc_json=self.docs.find_one({"id":doc_id})
 
         doc=doc_json["text"]

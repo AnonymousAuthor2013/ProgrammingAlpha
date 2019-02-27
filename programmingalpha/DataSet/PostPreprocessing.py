@@ -5,6 +5,12 @@ class PreprocessPostContent(object):
     code_insider=re.compile(r"<code>.*?</code>")
     plain_text=re.compile(r"<.*?>")
 
+    @staticmethod
+    def filterNILStr(s):
+        filterFunc=lambda s: s and s.strip()
+        s=' '.join(list(filter(filterFunc,s.split())))
+        s=list(filter(filterFunc,s.split('\n')))
+        return s
 
     def getPlainTxt(self,raw_txt):
         txt=re.sub(self.code_insider," ",raw_txt)

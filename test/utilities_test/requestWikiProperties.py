@@ -1,5 +1,4 @@
-import requests
-from programmingalpha.DataSet.DBLoader import MongoWikiDoc,MongodbAuth
+from programmingalpha.DataSet.DBLoader import MongoWikiDoc
 from multiprocessing.dummy import Pool as ThreadPool
 from programmingalpha.Utility.WebCrawler import AgentProxyCrawler
 import logging
@@ -11,14 +10,12 @@ console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
 
-db=MongoWikiDoc(**MongodbAuth)
+db=MongoWikiDoc(host='10.1.1.9',port=36666)
 db.useDB('wikidocs')
 
-db.setDocCollection('categories')
-crawled_ids=db.get_doc_ids()
+crawled_ids=db.get_doc_ids('categories')
 
-db.setDocCollection('articles')
-wikidoc_ids=db.get_doc_ids()
+wikidoc_ids=db.get_doc_ids('articles')
 
 crawler=AgentProxyCrawler()
 
@@ -36,10 +33,11 @@ def requestData(id=None):
     R=crawler.get(url=url,params=params,timeout=3)
 
     data=R.json()
+    cats=[]
+
     try:
       #  print(data)
         data=data["query"]["pages"][str(id)]
-        cats=[]
         for cat in data["categories"]:
      #       print(cat)
             cats.append(cat["title"][9:])

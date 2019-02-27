@@ -3,8 +3,6 @@ from ..DataSet.DBLoader import MongoStackExchange
 from .tfidf_doc_ranker import TfidfDocRanker
 from .bert_doc_ranker import SemanticRanker
 
-WorkingDocCollection="QAPForAI"
-
 
 def set_default(key, value):
     global DEFAULTS
