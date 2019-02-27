@@ -12,8 +12,12 @@ class PreprocessPostContent(object):
         s=list(filter(filterFunc,s.split('\n')))
         return s
 
-    def getPlainTxt(self,raw_txt):
-        txt=re.sub(self.code_insider," ",raw_txt)
+    def getPlainTxt(self,raw_txt,keep_emb_code=False):
+        if keep_emb_code:
+            txt=re.sub(self.code_snippet," ",raw_txt)
+        else:
+            txt=re.sub(self.code_insider," ",raw_txt)
+
         txt=re.sub(self.plain_text," ",txt)
         return txt
 
