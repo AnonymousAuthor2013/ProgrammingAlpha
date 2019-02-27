@@ -8,5 +8,6 @@ modelData/
 dist/
 build/
 pytorch-pretrained-BERT
+OpenNMT-py
 
 
