@@ -1,24 +1,25 @@
 import json
 
 #bert model
-BertBasePath="/home/LAB/zhangzy/BertModels/uncased_L-12_H-768_A-12/"
-BertLargePath="/home/LAB/zhangzy/BertModels/uncased_L-24_H-1024_A-16/"
+BertBasePath="/home/LAB/zhangzy/ShareModels/uncased_L-12_H-768_A-12/"
+BertLargePath="/home/LAB/zhangzy/ShareModels/uncased_L-24_H-1024_A-16/"
 #openai GPT model
-openAIGPTPath="/home/LAB/zhangzy/BertModels/openAIGPT/"
+openAIGPTPath="/home/LAB/zhangzy/ShareModels/openAIGPT/"
 #transformer-XL
-transformerXL="/home/LAB/zhangzy/BertModels/transformerXL/"
+transformerXL="/home/LAB/zhangzy/ShareModels/transformerXL/"
 #gpt-2 model
-GPT2Path="/home/LAB/zhangzy/BertModels/GPT2/"
+GPT2Path="/home/LAB/zhangzy/ShareModels/GPT2/"
 
 #global project path
 ConfigPath="/home/LAB/zhangzy/ProgrammingAlpha/ConfigData/"
-DataPath="/home/LAB/zhangzy/ProgrammingAlpha/data/"
-ModelPath="/home/LAB/zhangzy/ProgrammingAlpha/modelData/"
+DataPath="/home/LAB/zhangzy/ProjectData/"
+ModelPath="/home/LAB/zhangzy/ProjectModels/"
 
 #embedding
-Glove42="/home/LAB/zhangzy/BertModels/Embeddings/glove.42B/"
-Glove840="/home/LAB/zhangzy/BertModels/Embeddings/glove.840B/"
-Glove6="/home/LAB/zhangzy/BertModels/Embeddings/glove.6B/"
+Glove42="/home/LAB/zhangzy/ShareModels/Embeddings/glove.42B/"
+Glove840="/home/LAB/zhangzy/ShareModels/Embeddings/glove.840B/"
+Glove6="/home/LAB/zhangzy/ShareModels/Embeddings/glove.6B/"
+GloveStack="/home/LAB/zhangzy/ShareModels/Embeddings/stackexchange/"
 
 def loadConfig(filename):
     with open(filename,"r") as f:

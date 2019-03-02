@@ -21,13 +21,12 @@ print(tokenizer.tokenize(s))
 print('\n test transformerXL tokenizer')
 tokenizer=TransfoXLTokenizer()
 print(tokenizer.tokenize(s))
-
+print(tokenizer.build_vocab())
 print('\n test openai tokenizer')
 tokenizer=OpenAIGPTTokenizer(programmingalpha.openAIGPTPath+"/openai-gpt-vocab.json",programmingalpha.openAIGPTPath+"/openai-gpt-merges.txt")
 print(tokenizer.tokenize(s))
-
+print(tokenizer.bpe(s))
 print('\n test gpt2 tokenizer')
 tokenizer=GPT2Tokenizer(programmingalpha.GPT2Path+"/gpt2-vocab.json",programmingalpha.GPT2Path+"/gpt2-merges.txt")
 print(tokenizer.encode(s))
-
-
+print(tokenizer.bpe(s))

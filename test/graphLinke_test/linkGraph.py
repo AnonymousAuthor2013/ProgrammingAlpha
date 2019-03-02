@@ -6,13 +6,17 @@ import programmingalpha
 import numpy as np
 import tqdm
 import json
-from multiprocessing import Pool
+import multiprocessing
 from functools import partial
 import logging
+#from programmingalpha.Utility.DataStructure import UnifoldSet
+
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
+
+
 
 def buildGraph(dbName):
     db=MongoStackExchange(host='10.1.1.9',port=50000)
@@ -22,7 +26,7 @@ def buildGraph(dbName):
 
     allLinks=list(links.find().batch_size(args.batch_size))
 
-    G=nx.MultiDiGraph()
+    G=nx.Graph()
 
     for link in tqdm.tqdm(allLinks,desc="building graph from links"):
         id_a,id_b=link["PostId"],link["RelatedPostId"]
@@ -36,25 +40,21 @@ def buildGraph(dbName):
 
         G.add_edge(id_a,id_b,weight=w)
 
-    logger.info("finished finding {} sublinks".format(links.count()))
+    logger.info("finished finding {} sublinks".format(len(allLinks)))
     logger.info("graph size of edges({}) and nodes({})".format(len(list(G.edges)),len(list(G.nodes))))
 
-    return G
+    ccs=nx.connected_components(G)
+    graphs=[]
 
+    for cc in ccs:
+        g=G.subgraph(cc)
+        graphs.append(g)
 
+    graphs.sort(key=lambda g:len(g.nodes),reverse=True)
 
+    print(len(graphs),list(map(lambda g:len(g.nodes),sorted(graphs,key=lambda g:g.nodes,reverse=True)))[:10])
 
-def get_nodes_bacth(nodes,batch_size):
-    cache=[]
-    for node in nodes:
-        cache.append(node)
-        if len(cache)>=batch_size:
-            yield cache
-            cache.clear()
-
-    if len(cache)>0:
-        yield cache
-        cache.clear()
+    return graphs,G
 
 def computePathCore(src,maxLength,G):
     path=nx.single_source_dijkstra_path_length(G=G,source=src,cutoff=maxLength,weight="weight")
@@ -62,26 +62,39 @@ def computePathCore(src,maxLength,G):
         del path[src]
     return {src:path}
 
-def computeShortestPath(G:nx.Graph,maxLength=2):
-    logger.info("computing path length")
+def computeBatch(srcs,maxLength,G):
+    batch=[]
+    for src in srcs:
+        batch.append(computePathCore(src,maxLength,G))
+    return batch
+
+def computeShortestPathParallel(G,maxLength=2):
+    logger.info("computing path length using Pool")
     distanceData=[]
-    worker_num=30
-    workers=Pool(worker_num)
-    _compute=partial(computePathCore,maxLength=maxLength,G=G)
+    worker_num=30 if args.workers>0 else multiprocessing.cpu_count()
+    workers=multiprocessing.Pool(worker_num)
+    _compute=partial(computeBatch,maxLength=maxLength,G=G)
 
     nodes=list(G.nodes)
-    batches=[nodes[i:i+args.batch_size] for i in range(0,len(nodes),args.batch_size)]
-    #for node_bacth in get_nodes_bacth(G.nodes,args.batch_size):
-    for node_batch in tqdm.tqdm(batches,desc="computing batches of path"):
-        batch=workers.map(_compute,node_batch)
-        #print(batch)
-        distanceData.extend(batch)
+    batch_size=args.batch_size
+    batches=[nodes[i:i+batch_size] for i in range(0,len(nodes),batch_size)]
+    for batch in workers.map(_compute,batches):
+        distance_data.extend(batch)
 
     workers.close()
     workers.join()
 
     return distanceData
 
+def computeShortestPath(G,maxLength=2):
+    logger.info("computing path length")
+    distanceData=[]
+    _compute=partial(computePathCore,maxLength=maxLength,G=G)
+
+    for src in tqdm.tqdm(G.nodes,desc="computing path"):
+        distance_data.append(_compute(src))
+
+    return distanceData
 
 def _maxClip(data,maxSize):
     if len(data)>1.2*maxSize:
@@ -122,7 +135,7 @@ def relationPCore(path_data,nodes):
 def pairRelation(distanceData:list,nodes):
     linkData=[]
     batches=[distanceData[i:args.batch_size] for i in range(0,len(distanceData),args.batch_size)]
-    workers=Pool(args.workers)
+    workers=multiprocessing.Pool(args.workers)
     _relationPCore=partial(relationPCore,nodes=nodes)
     for batch in tqdm.tqdm(batches,desc="computing in batch"):
         links_batch=workers.map(_relationPCore,batch)
@@ -191,9 +204,9 @@ def constructLabledData(dbName):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--batch_size', type=str, default=1000)
-    parser.add_argument('--db', type=str, default="datascience")
-    parser.add_argument('--workers', type=int, default=30)
+    parser.add_argument('--batch_size', type=int, default=1000)
+    parser.add_argument('--db', type=str, default="crossvalidated")
+    parser.add_argument('--workers', type=int, default=20)
 
     args = parser.parse_args()
     dbName=args.db
@@ -202,8 +215,18 @@ if __name__ == '__main__':
 
 
     maxPathLength=2
-    G=buildGraph(dbName)
-    distance_data=computeShortestPath(G,maxPathLength)
+    graphs,G=buildGraph(dbName)
+    distance_data=[]
+
+    for G in tqdm.tqdm(graphs,desc="computing sub graph"):
+        logger.info("subgraph nodes: {}".format(len(G.nodes)))
+        if len(G.nodes)>args.batch_size:
+            distance_data_one=computeShortestPathParallel(G,maxPathLength)
+        else:
+            distance_data_one=computeShortestPath(G,maxPathLength)
+
+        distance_data.extend(distance_data_one)
+
     logger.info("shortest distance computing finished")
 
     distance_file=programmingalpha.DataPath+"linkData/"+dbName.lower()+'-%dgraph.json'%maxPathLength
