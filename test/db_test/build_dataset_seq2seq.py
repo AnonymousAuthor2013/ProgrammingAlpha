@@ -1,12 +1,11 @@
 from programmingalpha.retrievers import ESEngine
-from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
+from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
 from programmingalpha.DataSet.DBLoader import MongoStackExchange
 import programmingalpha
 from programmingalpha.tokenizers.tokenizer import SpacyTokenizer
 import os
 import json
 import logging
-from multiprocessing.dummy import Pool as ThreadPool
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',

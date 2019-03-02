@@ -41,7 +41,7 @@ def test1():
         ((y.T/ym).T).dot(np.divide(x,xm))
     )
 
-    from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
+    from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
     extractor=PreprocessPostContent()
     txt=extractor.getPlainTxt('<p> is is it good?</p><code></code>')
     print(txt)
@@ -84,4 +84,67 @@ def test2():
     with open(data_dir,"w") as f:
         f.writelines(data)
 
-test2()
+def test3():
+    from programmingalpha.DataSet.DBLoader import MongoStackExchange
+    from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
+    processor=PreprocessPostContent()
+    db=MongoStackExchange(host='10.1.1.9',port=50000)
+    dbName='stackoverflow'
+    db.useDB(dbName)
+    count=0
+    threshold=0.2
+    verbose=0
+    for q in db.questions.find().batch_size(10000):
+        txt=q['Title']+q['Body']
+        codes=' '.join(processor.getCodeSnippets(txt))
+        if len(codes) and verbose<10:
+            print(len(codes),len(txt))
+            verbose+=1
+
+        if len(codes)/len(txt)>threshold:
+            count+=1
+    print("code question is {}/{}".format(count,db.questions.count()))
+
+    count=0
+    for ans in db.answers.find().batch_size(10000):
+        txt=ans['Body']
+        codes=' '.join(processor.getCodeSnippets(txt))
+        if len(codes) and verbose<10:
+            print(len(codes),len(txt))
+            verbose+=1
+
+        if len(codes)/len(txt)>threshold:
+            count+=1
+    print('code answer is {}/{}'.format(count,db.answers.count()))
+#test2()
+
+def test4():
+    path="/home/LAB/zhangzy/BertModels/Embeddings/glove.6B/"
+    f1="glove.6B.100d.txt"
+    f2="glove.6B.200d.txt"
+    f3="glove.6B.300d.txt"
+    f4="glove.6B.50d.txt"
+
+    with open(path+f1,"r") as f:
+        lines1=f.readlines()
+    with open(path+f2,"r") as f:
+        lines2=f.readlines()
+    with open(path+f3,"r") as f:
+        lines3=f.readlines()
+    with open(path+f4,"r") as f:
+        lines4=f.readlines()
+    assert len(lines1)==len(lines2)
+    assert len(lines1)==len(lines3)
+    assert len(lines1)==len(lines4)
+
+    n=len(lines1)
+
+    for i in range(n):
+        if lines1[i][0]==lines2[i][0] and lines1[i][0]==lines3[i][0] and lines1[i][0]==lines4[i][0]:
+            pass
+        else:
+            raise ValueError("not equal, {}, {}, {}, {}".format(lines1[i][0],lines2[i][0],lines3[i][0],lines4[i][0]))
+
+    print("equal")
+if __name__ == '__main__':
+    test4()

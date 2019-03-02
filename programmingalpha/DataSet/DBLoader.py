@@ -1,6 +1,6 @@
 import pymongo
 from urllib.parse import quote_plus
-from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
+from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
 
 
 import logging

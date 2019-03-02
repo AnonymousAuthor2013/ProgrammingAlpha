@@ -15,7 +15,10 @@ ConfigPath="/home/LAB/zhangzy/ProgrammingAlpha/ConfigData/"
 DataPath="/home/LAB/zhangzy/ProgrammingAlpha/data/"
 ModelPath="/home/LAB/zhangzy/ProgrammingAlpha/modelData/"
 
-
+#embedding
+Glove42="/home/LAB/zhangzy/BertModels/Embeddings/glove.42B/"
+Glove840="/home/LAB/zhangzy/BertModels/Embeddings/glove.840B/"
+Glove6="/home/LAB/zhangzy/BertModels/Embeddings/glove.6B/"
 
 def loadConfig(filename):
     with open(filename,"r") as f:

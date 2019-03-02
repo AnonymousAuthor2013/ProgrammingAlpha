@@ -1,4 +1,4 @@
-from programmingalpha.DataSet.PostPreprocessing import PreprocessPostContent
+from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
 import json
 
 if __name__ == '__main__':

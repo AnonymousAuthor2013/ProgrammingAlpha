@@ -203,6 +203,16 @@ def main():
     model = BertForSemanticPrediction.from_pretrained(args.bert_model,
               #cache_dir=cache_dir,
               num_labels = num_labels)
+    '''
+    model_dict=model.state_dict()
+    print(model_dict.keys())
+    print(model_dict['bert.embeddings.word_embeddings.weight'].size(),model_dict['bert.embeddings.word_embeddings.weight'])
+    model_dict['bert.embeddings.word_embeddings.weight']=torch.ones_like(model_dict['bert.embeddings.word_embeddings.weight'])
+    model.load_state_dict(model_dict)
+    model_dict=model.state_dict()
+    print(model_dict['bert.embeddings.word_embeddings.weight'])
+    '''
+
     if args.fp16:
         model.half()
     model.to(device)
@@ -329,6 +339,7 @@ def main():
         model= BertForSemanticPrediction(BertConfig(os.path.join(args.output_dir,args.model_name+".json")), num_labels=num_labels)
         logger.info("loading weights for model {}".format(args.model_name))
         model.load_state_dict(torch.load(os.path.join(args.output_dir,args.model_name+".bin")))
+
     model.to(device)
     sranker=SemanticRanker(args.output_dir,args.model_name)
 
@@ -418,5 +429,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="all"
+    dataSource="AI"
     main()
