@@ -96,7 +96,8 @@ class CoreNLPTokenizer(object):
         start = output.find(b'{\r\n  "sentences":')
         output = json.loads(output[start:].decode('utf-8'))
 
-        tokens = tuple([t["word"] for s in output['sentences'] for t in s['tokens']])
+        tokens = tuple([self._convert(t["word"]) for s in output['sentences'] for t in s['tokens']])
+        #tokens = tuple([t["word"] for s in output['sentences'] for t in s['tokens']])
 
         return tokens
 
@@ -127,7 +128,7 @@ class SpacyTokenizer(object):
 if __name__ == '__main__':
     tokenizer1=CoreNLPTokenizer()
     tokenizer2=SpacyTokenizer()
-    s="I am a very powerful!"
+    s="I am a very powerful! (greatest) man"
     print(tokenizer1.tokenize(s))
     print(tokenizer2.tokenize(s))
     from programmingalpha.tokenizers import ngrams

@@ -41,7 +41,7 @@ def test1():
         ((y.T/ym).T).dot(np.divide(x,xm))
     )
 
-    from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
+    from programmingalpha.Utility.TextPreprocessing import PreprocessPostContent
     extractor=PreprocessPostContent()
     txt=extractor.getPlainTxt('<p> is is it good?</p><code></code>')
     print(txt)
@@ -86,7 +86,7 @@ def test2():
 
 def test3():
     from programmingalpha.DataSet.DBLoader import MongoStackExchange
-    from programmingalpha.Utility.PostPreprocessing import PreprocessPostContent
+    from programmingalpha.Utility.TextPreprocessing import PreprocessPostContent
     processor=PreprocessPostContent()
     db=MongoStackExchange(host='10.1.1.9',port=50000)
     dbName='stackoverflow'
