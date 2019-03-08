@@ -12,3 +12,5 @@ OpenNMT-py
 gpt-2
 texar
 Texygen
+*.log
+*.out
