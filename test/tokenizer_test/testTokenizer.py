@@ -5,7 +5,7 @@ import programmingalpha
 
 def testBasicFunctions():
     s="What were the first areas of research into Artificial Intelligence and what were some pupeer? spacy.tokeniz()? or jet.neety()"
-    s="0000 0000 0000 0000"
+    #s="0000 0000 0000 0000"
     print('\n test bert tokenizer')
     tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath)
     print(tokenizer.tokenize(s))

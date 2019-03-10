@@ -1,0 +1,187 @@
+from programmingalpha.DataSet.DBLoader import MongoStackExchange
+import argparse
+import numpy as np
+import tqdm
+import programmingalpha
+import os
+import json
+import logging
+
+logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt = '%m/%d/%Y %H:%M:%S',
+                    level = logging.INFO)
+
+logger = logging.getLogger(__name__)
+
+def recoverSent(texts):
+    text=" ".join(texts)
+    text=" ".join(text.split())
+
+    return text
+
+
+def inferenceGen():
+
+    collection=docDB.stackdb["inference"]
+    duplicates=list(collection.find({"label":"duplicate"}).batch_size(args.batch_size))
+
+    size=len(duplicates)
+    if args.maxSize>0 and args.maxSize<=size*4:
+        size=args.maxSize//4
+
+    query1=[
+          {"$match": {"label":"duplicate"}},
+          {"$sample": {"size": size}}
+        ]
+
+    query2=[
+          {"$match": {"label":"direct"}},
+          {"$sample": {"size": size}}
+        ]
+
+    query3=[
+          {"$match": {"label":"transitive"}},
+          {"$sample": {"size": size}}
+        ]
+
+    query4=[
+          {"$match": {"label":"unrelated"}},
+          {"$sample": {"size": size}}
+        ]
+    queries=[query1,query2,query3,query4]
+
+    trainSet=[]
+    validateSet=[]
+    testSet=[]
+    validateSize=int(size*args.validate_ratio)
+    testSize=args.test_size//4
+    trainSize=size-validateSize-testSize
+
+    for query in queries:
+        data=[]
+        data_samples=list(collection.aggregate(pipeline=query,allowDiskUse=True))
+        for record in tqdm.tqdm(data_samples,desc="{}".format(query)):
+            del record["_id"]
+            record["q1"]=recoverSent(record["q1"])
+            record["q2"]=recoverSent(record["q2"])
+            data.append(json.dumps(record)+"\n")
+
+        trainSet.extend(data[:trainSize])
+        validateSet.extend(data[trainSize:trainSize+validateSize])
+        testSet.extend(data[trainSize+validateSize:])
+
+        data.clear()
+
+    np.random.shuffle(trainSet)
+    np.random.shuffle(validateSet)
+    np.random.shuffle(testSet)
+
+
+    inference_sample_file_train=os.path.join(programmingalpha.DataPath,"inference/train.json")
+    inference_sample_file_validate=os.path.join(programmingalpha.DataPath,"inference/validate.json")
+    inference_sample_file_test=os.path.join(programmingalpha.DataPath,"inference/test.json")
+
+    logger.info("saving data to "+inference_sample_file_train)
+    with open(inference_sample_file_train,"w") as f:
+        f.writelines(trainSet)
+
+    logger.info("saving data to "+inference_sample_file_validate)
+    with open(inference_sample_file_validate,"w") as f:
+        f.writelines(validateSet)
+
+    logger.info("saving data to "+inference_sample_file_test)
+    with open(inference_sample_file_test,"w") as f:
+        f.writelines(testSet)
+
+def seq2seqGen():
+    collection=docDB.stackdb["seq2seq"]
+    size=collection.count()
+    if args.maxSize>0 and args.maxSize<size:
+        size=args.maxSize
+
+    data_samples=list(collection.find().limit(size).batch_size(args.batch_size))
+    #print(data_samples[:2])
+
+    dataSet=[]
+    for record in tqdm.tqdm(data_samples,desc="retriving seq2seq samples(size)".format(size)):
+        del record["_id"]
+        record["question"]=recoverSent(record["question"])
+        record["answer"]=recoverSent(record["answer"])
+        record["context"]=recoverSent(record["context"])
+        dataSet.append(record)
+
+    #print(dataSet[:2])
+
+    testSize=args.test_size
+    validateSize=int(args.validate_ratio*size)
+    trainSize=size-testSize-validateSize
+
+    trainSet=dataSet[:trainSize]
+    validateSet=dataSet[trainSize:trainSize+validateSize]
+    testSet=dataSet[trainSize+validateSize:]
+
+    trainSrc=map(lambda record:record["context"]+"\n",trainSet)
+    trainDst=map(lambda record:record["answer"]+"\n",trainSet)
+
+    validateSrc=map(lambda record:record["context"]+"\n",validateSet)
+    validateDst=map(lambda record:record["answer"]+"\n",validateSet)
+
+    testSrc=map(lambda record:record["context"]+"\n",testSet)
+    testDst=map(lambda record:record["answer"]+"\n",testSet)
+
+
+    seq2seq_sample_file_train_src=os.path.join(programmingalpha.DataPath,"seq2seq/train-src.json")
+    seq2seq_sample_file_train_dst=os.path.join(programmingalpha.DataPath,"seq2seq/train-dst.json")
+
+    seq2seq_sample_file_validate_src=os.path.join(programmingalpha.DataPath,"seq2seq/validate-src.json")
+    seq2seq_sample_file_validate_dst=os.path.join(programmingalpha.DataPath,"seq2seq/validate-dst.json")
+
+    seq2seq_sample_file_test_src=os.path.join(programmingalpha.DataPath,"seq2seq/test-src.json")
+    seq2seq_sample_file_test_dst=os.path.join(programmingalpha.DataPath,"seq2seq/test-dst.json")
+
+    logger.info("saving data to "+seq2seq_sample_file_train_src)
+    with open(seq2seq_sample_file_train_src,"w") as f:
+        f.writelines(trainSrc)
+
+    logger.info("saving data to "+seq2seq_sample_file_train_dst)
+    with open(seq2seq_sample_file_train_dst,"w") as f:
+        f.writelines(trainDst)
+
+    logger.info("saving data to "+seq2seq_sample_file_validate_src)
+    with open(seq2seq_sample_file_validate_src,"w") as f:
+        f.writelines(validateSrc)
+
+    logger.info("saving data to "+seq2seq_sample_file_validate_dst)
+    with open(seq2seq_sample_file_validate_dst,"w") as f:
+        f.writelines(validateDst)
+
+    logger.info("saving data to "+seq2seq_sample_file_test_src)
+    with open(seq2seq_sample_file_test_src,"w") as f:
+        f.writelines(testSrc)
+
+    logger.info("saving data to "+seq2seq_sample_file_test_dst)
+    with open(seq2seq_sample_file_test_dst,"w") as f:
+        f.writelines(testDst)
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch_size', type=int, default=1000)
+    parser.add_argument('--db', type=str, default="corpus")
+    parser.add_argument('--maxSize', type=int, default=-1)
+    parser.add_argument('--task', type=str, default="seq2seq")
+    parser.add_argument('--validate_ratio', type=float, default=0.1)
+    parser.add_argument('--test_size', type=int, default=5000)
+
+    args = parser.parse_args()
+
+    docDB=MongoStackExchange(host='10.1.1.9',port=50000)
+    docDB.useDB(args.db)
+
+    if args.task=="inference":
+        logger.info("task is "+args.task)
+        inferenceGen()
+    if args.task=="seq2seq":
+        logger.info("task is "+args.task)
+        seq2seqGen()

@@ -1,11 +1,11 @@
-from programmingalpha.DataSet.DBLoader import MongoStackExchange,MongodbAuth
+from programmingalpha.DataSet.DBLoader import MongoStackExchange
 
 
 batch_size=10000
 
 def initDB(dbName):
 
-    db=MongoStackExchange(**MongodbAuth)
+    db=MongoStackExchange(host='10.1.1.9',port=50000)
     db.useDB(dbName)
 
     return db

@@ -19,25 +19,77 @@ logger = logging.getLogger(__name__)
 precessor=PreprocessPostContent()
 
 
-def init(questionsData_G,answersData_G,indexData_G,linksData_G):
+def init(questionsData_G,answersData_G,linksData_G,copy=True):
     global tokenizer,answerExtractor,questionExtractor
     tokenizer=CoreNLPTokenizer()#SpacyTokenizer()
     answerExtractor=AnswerTextInformationExtractor(args.answerLen,tokenizer)
     questionExtractor=QuestionTextInformationExtractor(args.questionLen,tokenizer)
     global questionsData,answersData,indexData,linksData
-    questionsData=questionsData_G.copy()
-    answersData=answersData_G.copy()
-    indexData=indexData_G.copy()
-    linksData=linksData_G.copy()
+    if copy:
+        questionsData=questionsData_G.copy()
+        answersData=answersData_G.copy()
+        linksData=linksData_G.copy()
+    else:
+        questionsData=questionsData_G
+        answersData=answersData_G
+        linksData=linksData_G
+
     logger.info("process {} init".format(multiprocessing.current_process()))
 
-def filerLowQualityQuestion(question):
-    if ("AcceptedAnswerId" not in question or not question["AcceptedAnswerId"]) and \
-                ("AnswerCount" not in question or question["AnswerCount"]<10) and \
-                ("FavoriteCount" not in question or question["FavoriteCount"]):
+def filerLowQualityQuestion(question,mode=1):
+    cond1=lambda q:("AcceptedAnswerId" not in q or not q["AcceptedAnswerId"])
+    cond2=lambda q:("AnswerCount" not in q or q["AnswerCount"]<10)
+    cond3=lambda q:("FavoriteCount" not in q or q["FavoriteCount"])
+
+    if  mode==1 and cond1(question) :
+        'accepted answer'
+        return False
+
+    if mode==2 and ( cond2(question) or cond3(question) ):
+        'high quality question only'
         return False
 
     return True
+
+
+
+def fetchQuestionData():
+    questionsData={}
+
+    needed_answerIds=set()
+
+    query={"AcceptedAnswerId":{"$exists":True,"$ne":''}}
+
+    for question in tqdm.tqdm(docDB.questions.find(query).batch_size(args.batch_size),desc="loading questions"):
+        if filerLowQualityQuestion(question,mode=1)==False:
+            continue
+
+        Id=question["Id"]
+        del question["_id"]
+        questionsData[Id]={"Title":question["Title"],"Body":question["Body"],"AcceptedAnswerId":question["AcceptedAnswerId"]}
+
+        needed_answerIds.add(questionsData["AcceptedAnswerId"])
+
+    logger.info("loaded: questions({})".format(len(questionsData)))
+
+    return questionsData, needed_answerIds
+
+def fetchAnswerData():
+    answersData={}
+
+    for ans in tqdm.tqdm(docDB.answers.find().batch_size(args.batch_size),desc="loading answers"):
+
+        Id=ans["Id"]
+
+        if  Id not in ansIdxGlobal or ans["ParentId"] not in questionsDataGlobal:
+            continue
+
+
+        answersData[Id]={"Body":ans["Body"],"Score":ans["Score"]}
+
+    logger.info("loaded: answers({})".format(len(answersData)))
+
+    return answersData
 
 def fetchLinkData():
     links=docDB.stackdb.get_collection("postlinks")
@@ -47,6 +99,10 @@ def fetchLinkData():
     myG={}
     for link in tqdm.tqdm(allLinks,desc="loading links"):
         id_a,id_b=link["PostId"],link["RelatedPostId"]
+
+        if id_a not in questionsDataGlobal or id_b not in questionsDataGlobal:
+            continue
+
         r=link["LinkTypeId"]
         if r==3:
             w=0
@@ -69,153 +125,105 @@ def fetchLinkData():
 
     return myG
 
-def fetchAnswerData():
-    answersData={}
-
-    db=MongoStackExchange(host='10.1.1.9',port=50000)
-    db.useDB(args.db)
-    for ans in tqdm.tqdm(db.answers.find().batch_size(args.batch_size),desc="loading answers"):
-
-        Id=ans["Id"]
-        del ans["_id"]
-        answersData[Id]=ans
-
-    logger.info("loaded: answers({})".format(len(answersData)))
-
-    return answersData
-
-def fetchQuestionData():
-    questionsData={}
-
-    db=MongoStackExchange(host='10.1.1.9',port=50000)
-    db.useDB(args.db)
-    for question in tqdm.tqdm(db.questions.find().batch_size(args.batch_size),desc="loading questions"):
-        if filerLowQualityQuestion(question)==False:
-            continue
-
-        Id=question["Id"]
-        del question["_id"]
-        questionsData[Id]=question
-
-    logger.info("loaded: questions({})".format(len(questionsData)))
-
-    return questionsData
-
-def fetchQAIndex():
-    indexData={}
-
-    db=MongoStackExchange(host='10.1.1.9',port=50000)
-    db.useDB(args.db)
-    indexes=db.stackdb.get_collection("QAIndexer")
-    for index in tqdm.tqdm(indexes.find().batch_size(args.batch_size),desc="loading indexes"):
-
-        Id=index["Id"]
-        del index["_id"]
-        indexData[Id]=index
-
-    logger.info("loaded: indexes({})".format(len(indexData)))
-
-    return indexData
-
-
 #generate Core
 def _getBestAnswer(q_id):
-    ans_id=None
-    if "AcceptedAnswerId" in questionsData[q_id]:
+    try:
         ans_id=questionsData[q_id]["AcceptedAnswerId"]
-    else:
-        score=-100000
-        for can_id in indexData[q_id]["Answers"]:
-            if answersData[can_id]["Score"]>score:
-                ans_id=can_id
-                score=answersData[can_id]["Score"]
+        answer=answersData[ans_id]
+    except:
+        return None
 
-    return ans_id
+    return answer
 
 def _genCore(distances):
+    try:
+        q_id=distances["id"]
 
-    q_id=distances["id"]
-
-    #get question
-    if q_id not in questionsData:
-        return None
-
-    question=questionExtractor.clipText(questionsData[q_id])
-
-    #get answer
-    ans_id=_getBestAnswer(q_id)
-
-    if ans_id is  None or ans_id not in answersData:
-        return None
-
-    answerExtractor.keepdOrder=True
-    answer=answerExtractor.clipText(answersData[ans_id]["Body"])
-    answerExtractor.keepdOrder=False
-
-    #get context
-    relative_q_ids=[]
-    if q_id in linksData:
-        dists=linksData[q_id]
-    else:
-        dists=distances["distances"]
-
-    for id in dists:
-        if len(relative_q_ids)>=5:
-            break
-        if dists[id]==1:
-            relative_q_ids.append(id)
-        elif dists[id]==0:
-            relative_q_ids.insert(0,id)
-        else:
-            pass
-
-    if len(relative_q_ids)==0:
-        return None
-
-    answers=[]
-    for q_id in relative_q_ids:
+        #get question
         if q_id not in questionsData:
-            continue
-        ans_idx=indexData[q_id]
+            return None
 
-        if ans_idx["AcceptedAnswerId"] != -1:
-            ans_id=ans_idx["AcceptedAnswerId"]
+        question=questionExtractor.clipText(questionsData[q_id])
+
+        #get answer
+        answer=_getBestAnswer(q_id)
+
+        if answer is  None:
+            return None
+
+        answerExtractor.keepdOrder=True
+        answer=answerExtractor.clipText(answer["Body"])
+        answerExtractor.keepdOrder=False
+
+        #get context
+        relative_q_ids=[]
+        if q_id in linksData:
+            dists=linksData[q_id]
         else:
-            ans_id=_getBestAnswer(q_id)
+            dists=distances["distances"]
 
-        if ans_id is not None and ans_id in answersData:
-            answers.append(answersData[ans_id])
+        for id in dists:
+            if id not in questionsData:
+                continue
 
-    context=[]
-    count=0
-    for ans in answers:
-        ans_txt=answerExtractor.clipText(ans["Body"])
-        context.extend(ans_txt)
+            if len(relative_q_ids)>=5:
+                break
 
-        count+=sum(map(lambda s:len(s),ans_txt))
-        if count>args.contextLen:
-            break
+            if dists[id]==1:
+                relative_q_ids.append(id)
+            elif dists[id]==0:
+                relative_q_ids.insert(0,id)
+            elif dists[id]==2:
+                if filerLowQualityQuestion(questionsData[id],mode=2)==True:
+                    relative_q_ids.append(id)
+            else:
+                pass
 
-    if len(context)==0:
+        if len(relative_q_ids)==0:
+            return None
+
+
+
+        context=[]
+        count=0
+        for q_id in relative_q_ids:
+            if q_id not in questionsData:
+                continue
+
+            ans=_getBestAnswer(q_id)
+            if ans is None:
+                continue
+
+            ans_txt=answerExtractor.clipText(ans["Body"])
+            context.extend(ans_txt)
+
+            count+=sum(map(lambda s:len(s.split()),ans_txt))
+            if count>args.contextLen:
+                break
+
+        if len(context)==0:
+            return None
+
+        record={"question":question,"context":context,"answer":answer}
+
+        return record
+    except :
+        logger.warning("except triggered for distance data: {}".format(distances))
         return None
 
-    record={"question":question,"context":context,"answer":answer}
 
-    return record
-
-def generateContextAnswerCorpus(distanceData):
+def generateContextAnswerCorpusParallel(distanceData):
 
     cache=[]
     batch_size=args.batch_size
     batches=[distanceData[i:i+batch_size] for i in range(0,len(distanceData),batch_size)]
 
     workers=multiprocessing.Pool(args.workers,initializer=init,
-                                 initargs=(questionsDataGlobal,answersDataGlobal,indexDataGlobal,linksDataGlobal))
-
-
+                                 initargs=(questionsDataGlobal,answersDataGlobal,linksDataGlobal))
 
     with open(programmingalpha.DataPath+"Corpus/"+args.db.lower()+"-seq2seq.json","w") as f:
         for batch_links in tqdm.tqdm(batches,desc="processing documents"):
+
             for record in workers.map(_genCore,batch_links):
                 if record is not None:
 
@@ -224,24 +232,44 @@ def generateContextAnswerCorpus(distanceData):
             f.writelines(cache)
             cache.clear()
 
+
         workers.close()
         workers.join()
 
+def generateContextAnswerCorpus(distanceData):
+
+    cache=[]
+
+    init(questionsDataGlobal,answersDataGlobal,linksDataGlobal,copy=False)
+
+    with open(programmingalpha.DataPath+"Corpus/"+args.db.lower()+"-seq2seq.json","w") as f:
+        for link in tqdm.tqdm(distanceData,desc="processing documents"):
+            record =_genCore(link)
+            if record is not None:
+                cache.append(json.dumps(record)+"\n")
+
+            if len(cache)>args.batch_size:
+                f.writelines(cache)
+                cache.clear()
+
+        if len(cache)>0:
+            f.writelines(cache)
+            cache.clear()
 
 def main():
     logger.info("loading distance data")
     distance_file=programmingalpha.DataPath+"linkData/"+dbName.lower()+'-2graph.json'
     distance_data=[]
-    nodes=[]
     with open(distance_file,"r") as f:
         for line in f:
             path=json.loads(line)
+            if path["id"] not in questionsDataGlobal:
+                continue
             distance_data.append(path)
-            nodes.append(path["id"])
+    logger.info("loaded {} links data".format(len(distance_data)))
 
-    np.random.shuffle(distance_data)
-
-    generateContextAnswerCorpus(distance_data)
+    #generateContextAnswerCorpus(distance_data)
+    generateContextAnswerCorpusParallel(distance_data)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -251,7 +279,7 @@ if __name__ == '__main__':
     parser.add_argument('--answerLen', type=int, default=300)
     parser.add_argument('--contextLen', type=int, default=600)
 
-    parser.add_argument('--workers', type=int, default=25)
+    parser.add_argument('--workers', type=int, default=5)
 
     args = parser.parse_args()
 
@@ -259,9 +287,8 @@ if __name__ == '__main__':
     dbName=args.db
     docDB.useDB(dbName)
 
-    questionsDataGlobal=fetchQuestionData()
+    questionsDataGlobal, ansIdxGlobal=fetchQuestionData()
     answersDataGlobal=fetchAnswerData()
-    indexDataGlobal=fetchQAIndex()
     linksDataGlobal=fetchLinkData()
 
     main()

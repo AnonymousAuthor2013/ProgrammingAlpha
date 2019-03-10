@@ -146,5 +146,15 @@ def test4():
             raise ValueError("not equal, {}, {}, {}, {}".format(lines1[i][0],lines2[i][0],lines3[i][0],lines4[i][0]))
 
     print("equal")
+
+def testBertService():
+    from bert_serving import client
+    my_client=client.BertClient(ip='192.168.5.183',port=5555)
+    encs=my_client.encode(["what is jetty.class?", "it is java class"])
+    print(np.shape(encs))
+    print(encs)
 if __name__ == '__main__':
-    test4()
+    #test4()
+    testBertService()
+
+    pass

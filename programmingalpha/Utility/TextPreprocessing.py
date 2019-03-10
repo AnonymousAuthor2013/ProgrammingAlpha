@@ -24,13 +24,14 @@ class PreprocessPostContent(object):
             txt=re.sub(self.code_insider," ",raw_txt)
 
         paragraphs=self.getParagraphs(txt)
+        paragraphs=list(filter(self.filterNILStr,paragraphs))
+        #print("filtered",paragraphs)
+
         texts=[]
         for txt in paragraphs:
-            txt=self.filterNILStr(txt)
             txt=re.sub(self.plain_text," ",txt)
             texts.append(txt)
         if len(paragraphs)==0:
-            txt=self.filterNILStr(txt)
             txt=re.sub(self.plain_text," ",txt)
             texts.append(txt)
         return texts
@@ -87,6 +88,7 @@ class QuestionTextInformationExtractor(object):
         exploreSet.remove(1)
         exploreSet.remove(len(paragraphs)-1)
 
+
         while count<self.maxClip and Delta> self.dela_min and len(exploreSet)>0:
             selected_sent=None
             maxDela=float('-inf')
@@ -94,13 +96,21 @@ class QuestionTextInformationExtractor(object):
                 sent=paragraphs[i]
                 newSeqs=seqs+[encoder[tok] for tok in sent]
                 newEnt=self.informationEnt(newSeqs)
+                if entSum==0:
+                    entSum=1e-4
                 Delta=(newEnt-entSum)/entSum
                 if Delta >maxDela:
                     selected_sent=i
                     maxDela=Delta
-            Delta=maxDela
-            texts.append(paragraphs[selected_sent])
-            exploreSet.remove(selected_sent)
+
+
+            if selected_sent is not None:
+                Delta=maxDela
+                texts.append(paragraphs[selected_sent])
+                exploreSet.remove(selected_sent)
+                entSum=newEnt
+            else:
+                break
 
         return texts
 
@@ -188,6 +198,7 @@ class AnswerTextInformationExtractor(object):
             exploreSet.remove(tagger)
         texts.insert(2,paragraphs[tagger])
 
+
         while count<self.maxClip and Delta> self.dela_min and len(exploreSet)>0:
             selected_sent=None
             maxDela=float('-inf')
@@ -195,13 +206,19 @@ class AnswerTextInformationExtractor(object):
                 sent=paragraphs[i]
                 newSeqs=seqs+[encoder[tok] for tok in sent]
                 newEnt=self.informationEnt(newSeqs)
+                if entSum==0:
+                    entSum=1e-4
                 Delta=(newEnt-entSum)/entSum
                 if Delta >maxDela:
                     selected_sent=i
                     maxDela=Delta
-            Delta=maxDela
-            texts.append(paragraphs[selected_sent])
-            exploreSet.remove(selected_sent)
+            if selected_sent is not None:
+                Delta=maxDela
+                texts.append(paragraphs[selected_sent])
+                exploreSet.remove(selected_sent)
+                entSum=newEnt
+            else:
+                break
 
         if self.keepdOrder==True:
             texts.clear()
@@ -238,7 +255,7 @@ if __name__ == '__main__':
     print(", ".join(s.replace("<","").replace(">"," ").strip().split(" ")))
     print(s)
 
-    s='''
+    '''
     <p>In particular, an embedded computer (with limited resources) analyzes live video stream from a traffic camera, trying to pick good frames that contain license plate numbers of passing cars. Once a plate is located, the frame is handed over to an OCR library to extract the registration and use it further.</p>
 
     <p>In my country two types of license plates are in common use - rectangular (the typical) and square - actually, somewhat rectangular but "higher than wider", with the registration split over two rows.</p>
@@ -255,3 +272,8 @@ if __name__ == '__main__':
     ss=pros.getPlainTxt(s)
     print(len(ss))
     [print(s1) for s1 in ss]
+
+    texts=["","<p>hi ,you</p>","<p>what is it?</p>","","","<p>good</p>"]
+
+    newtexts=pros.getPlainTxt(" ".join(texts))
+    print(newtexts)

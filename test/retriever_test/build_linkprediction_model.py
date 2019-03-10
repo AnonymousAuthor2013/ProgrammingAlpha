@@ -1,10 +1,10 @@
-from programmingalpha.retrievers.bert_doc_ranker import *
+from programmingalpha.retrievers.relation_searcher import *
 import programmingalpha
 import random
 import argparse
 from tqdm import tqdm, trange
 from pytorch_pretrained_bert.optimization import BertAdam
-from programmingalpha.models.InferenceModels import BertForSemanticPrediction
+from programmingalpha.models.InferenceModels import BertForLinkRelationPrediction
 from pytorch_pretrained_bert.optimization import warmup_linear
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
@@ -35,7 +35,7 @@ def main():
                         #required=True,
                         help="The name of the model.")
     parser.add_argument("--data_dir",
-                        default=programmingalpha.DataPath+"inference_pair/",
+                        default=programmingalpha.DataPath+"inference/",
                         type=str,
                         #required=True,
                         help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
@@ -61,7 +61,7 @@ def main():
                         type=str,
                         help="Where do you want to store the pre-trained models downloaded from s3")
     parser.add_argument("--max_seq_length",
-                        default=128,
+                        default=512,
                         type=int,
                         help="The maximum total input sequence length after WordPiece tokenization. \n"
                              "Sequences longer than this will be truncated, and sequences shorter \n"
@@ -126,7 +126,6 @@ def main():
     if not args.do_train and not args.do_eval:
         args.do_train, args.do_eval=True,True
 
-    loss_partial=[1,1]
 
     processors = {
         "semantic": SemanticPairProcessor,
@@ -185,7 +184,7 @@ def main():
 
     processor = processors[task_name](dataSource)
     num_labels = num_labels_task[task_name]
-    label_list = processor.get_labels()
+    labelMap = RelationSearcher.label_map
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 
@@ -200,9 +199,9 @@ def main():
 
     # Prepare model
     cache_dir = args.cache_dir if args.cache_dir else os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, 'distributed_{}'.format(args.local_rank))
-    model = BertForSemanticPrediction.from_pretrained(args.bert_model,
-              #cache_dir=cache_dir,
-              num_labels = num_labels)
+    model = BertForLinkRelationPrediction.from_pretrained(args.bert_model,
+                                                          #cache_dir=cache_dir,
+                                                          num_labels = num_labels)
     '''
     model_dict=model.state_dict()
     print(model_dict.keys())
@@ -260,7 +259,7 @@ def main():
     tr_loss = 0
     if args.do_train:
         train_features = convert_examples_to_features(
-            train_examples, label_list, args.max_seq_length, tokenizer)
+            train_examples, labelMap, args.max_seq_length, tokenizer)
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)
@@ -269,8 +268,7 @@ def main():
         all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
-        all_sim_values=torch.tensor([f.simValue for f in train_features],dtype=torch.float)
-        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
+        train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
 
 
         if args.local_rank == -1:
@@ -285,17 +283,15 @@ def main():
             nb_tr_examples, nb_tr_steps = 0, 0
             for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
                 batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids, sim_values = batch
+                input_ids, input_mask, segment_ids, label_ids = batch
 
                 input_ids=input_ids.to(device)
                 input_mask=input_mask.to(device)
                 segment_ids=segment_ids.to(device)
                 label_ids=label_ids.to(device)
-                sim_values=sim_values.to(device)
 
-                loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
+                loss = model(input_ids, segment_ids, input_mask, label_ids)
                 #logger.info("loss:{}({},{}), and loss_partial:{}".format(loss,loss[0],loss[1],loss_partial))
-                loss=loss_partial[0]*loss[0]+loss_partial[1]*loss[1]
 
                 if n_gpu > 1:
                     loss = loss.mean() # mean() to average on multi-gpu.
@@ -332,22 +328,23 @@ def main():
 
         # Load a trained model and config that you have fine-tuned
         config = BertConfig(output_config_file)
-        model = BertForSemanticPrediction(config, num_labels=num_labels)
+        model = BertForLinkRelationPrediction(config, num_labels=num_labels)
         model.load_state_dict(torch.load(output_model_file))
     else:
-        #model = BertForSemanticPrediction.from_pretrained(args.bert_model, num_labels=num_labels)
-        model= BertForSemanticPrediction(BertConfig(os.path.join(args.output_dir,args.model_name+".json")), num_labels=num_labels)
+        #model = BertForLinkRelationPrediction.from_pretrained(args.bert_model, num_labels=num_labels)
+        model= BertForLinkRelationPrediction(BertConfig(os.path.join(args.output_dir, args.model_name + ".json")), num_labels=num_labels)
         logger.info("loading weights for model {}".format(args.model_name))
         model.load_state_dict(torch.load(os.path.join(args.output_dir,args.model_name+".bin")))
 
     model.to(device)
-    sranker=SemanticRanker(args.output_dir,args.model_name)
+
+    #sranker=RelationSearcher(args.output_dir,args.model_name)
 
 
     if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
         eval_examples = processor.get_dev_examples(args.data_dir)
         eval_features = convert_examples_to_features(
-            eval_examples, label_list, args.max_seq_length, tokenizer)
+            eval_examples, labelMap, args.max_seq_length, tokenizer)
         logger.info("***** Running evaluation *****")
         logger.info("  Num examples = %d", len(eval_examples))
         logger.info("  Batch size = %d", args.eval_batch_size)
@@ -355,9 +352,8 @@ def main():
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
-        all_sim_values=torch.tensor([f.simValue for f in eval_features],dtype=torch.float)
 
-        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids,all_sim_values)
+        eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
         test_data=TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
 
         # Run prediction for full data
@@ -365,11 +361,10 @@ def main():
         test_sampler=SequentialSampler(test_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
         test_dataloader=DataLoader(test_data,sampler=test_sampler,batch_size=args.eval_batch_size)
-        out_logits,out_simValues =sranker.computeSimvalue(test_dataloader)
-        print(out_simValues.shape,out_logits.shape)
-        print(out_simValues[:3])
-        print(out_logits[:3])
-        print(all_sim_values[:3])
+
+        #out_logits =sranker.computeSimvalue(test_dataloader)
+        #print(out_logits.shape)
+        #print(out_logits[:3])
 
 
 
@@ -377,33 +372,25 @@ def main():
         eval_loss, eval_accuracy, eval_error = 0, 0, 0
         nb_eval_steps, nb_eval_examples = 0, 0
         i=0
-        for input_ids, input_mask, segment_ids, label_ids,sim_values in tqdm(eval_dataloader, desc="Evaluating"):
+        for input_ids, input_mask, segment_ids, label_ids in tqdm(eval_dataloader, desc="Evaluating"):
             input_ids = input_ids.to(device)
             input_mask = input_mask.to(device)
             segment_ids = segment_ids.to(device)
             label_ids = label_ids.to(device)
-            sim_values=sim_values.to(device)
             with torch.no_grad():
-                tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids,sim_values)
-                #logits = model(input_ids, segment_ids, input_mask)
-                tmp_eval_loss=loss_partial[0]*tmp_eval_loss[0]+loss_partial[1]*tmp_eval_loss[1]
+                tmp_eval_loss = model(input_ids, segment_ids, input_mask, label_ids)
+                logits = model(input_ids, segment_ids, input_mask)
 
-            logits=out_logits[i:i+args.eval_batch_size]
-            simValues=out_simValues[i:i+args.eval_batch_size]
+            #logits=out_logits[i:i+args.eval_batch_size]
             i+=args.eval_batch_size
 
-            #logits = logits.detach().cpu().numpy()
+            logits = logits.detach().cpu().numpy()
             label_ids = label_ids.to('cpu').numpy()
             tmp_eval_accuracy = accuracy(logits, label_ids)
-
-            #simValues=simValues.detach().cpu().numpy()
-            sim_values=sim_values.to('cpu').numpy()
-            tmp_eval_error=mseError(simValues,sim_values)
 
 
             eval_loss += tmp_eval_loss.mean().item()
             eval_accuracy += tmp_eval_accuracy
-            eval_error += tmp_eval_error
 
             nb_eval_examples += input_ids.size(0)
             nb_eval_steps += 1
@@ -429,5 +416,5 @@ def main():
 
 if __name__ == "__main__":
 
-    dataSource="AI"
+    dataSource=""
     main()

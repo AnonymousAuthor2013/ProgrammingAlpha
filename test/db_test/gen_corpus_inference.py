@@ -117,7 +117,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1000)
     parser.add_argument('--db', type=str, default="stackoverflow")
     parser.add_argument('--maxLength', type=int, default=250)
-    parser.add_argument('--workers', type=int, default=25)
+    parser.add_argument('--workers', type=int, default=5)
 
     args = parser.parse_args()
 

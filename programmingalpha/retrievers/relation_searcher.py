@@ -11,11 +11,12 @@ import programmingalpha
 import torch
 from torch.utils.data import TensorDataset, DataLoader, SequentialSampler
 from programmingalpha.tokenizers import BertTokenizer
-from programmingalpha.models.InferenceModels import BertForSemanticPrediction
+from programmingalpha.models.InferenceModels import BertForLinkRelationPrediction
 from pytorch_pretrained_bert import BertConfig
 from tqdm import tqdm, trange
 from multiprocessing import Pool as ProcessPool
 from functools import partial
+import copy
 
 import logging
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ logger.setLevel(logging.INFO)
 class InputExample(object):
     """A single training/test example for simple sequence classification."""
 
-    def __init__(self, guid, text_a, text_b=None, label=None,value=None):
+    def __init__(self, guid, text_a, text_b=None, label=None):
         """Constructs a InputExample.
 
         Args:
@@ -41,17 +42,15 @@ class InputExample(object):
         self.text_a = text_a
         self.text_b = text_b
         self.label = label
-        self.value=value
 
 class InputFeatures(object):
     """A single set of features of data."""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_id,value):
+    def __init__(self, input_ids, input_mask, segment_ids, label_id):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_id = label_id
-        self.simValue=value
 
 
 class DataProcessor(object):
@@ -71,8 +70,6 @@ class DataProcessor(object):
         """Gets the list of labels for this data set."""
         raise NotImplementedError()
 
-    def get_values(self):
-        raise NotImplementedError()
 
     @classmethod
     def _read_json(cls, input_file, quotechar=None):
@@ -86,12 +83,7 @@ class DataProcessor(object):
 
 class SemanticPairProcessor(DataProcessor):
     """Processor for the MRPC data set (GLUE version)."""
-    value2label={
-            0:"0",
-            0.5:"1",
-            0.7:"2",
-            1:"3",
-        }
+
     def get_train_examples(self, data_dir):
         """See base class."""
         if self.sourcePair is None or self.sourcePair=="":
@@ -116,10 +108,9 @@ class SemanticPairProcessor(DataProcessor):
 
     def get_labels(self):
         """See base class."""
-        return ["0","1","2","3"]
+        return ["duplicate","direct","transitive","unrelated"]
 
-    def get_values(self):
-        return (0,1)
+
 
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
@@ -128,17 +119,15 @@ class SemanticPairProcessor(DataProcessor):
 
 
 
-        for (i, line) in enumerate(lines):
+        for (i, record) in enumerate(lines):
 
             guid = "%s-%s" % (set_type, i)
-            titles=line["title"].split('|||')
-            bodies=line["body"].split('|||')
-            text_a = titles[0]+bodies[0]
-            text_b = titles[1]+bodies[1]
-            value = line["simValue"]
-            label=self.value2label[value]
+
+            text_a = record["q1"]
+            text_b = record["q2"]
+            label=record["label"]
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label,value=value)
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
             )
 
         return examples
@@ -159,7 +148,8 @@ def _truncate_seq_pair(tokens_a, tokens_b, max_length):
         else:
             tokens_b.pop()
 
-def convertCore(label_map,tokenizer,max_seq_length,example:InputExample):
+
+def convertCore(example:InputExample):
 
     tokens_a = tokenizer.tokenize(example.text_a)
 
@@ -221,39 +211,52 @@ def convertCore(label_map,tokenizer,max_seq_length,example:InputExample):
     feature = InputFeatures(input_ids=input_ids,
                     input_mask=input_mask,
                     segment_ids=segment_ids,
-                    label_id=label_id,
-                    value=example.value)
+                    label_id=label_id)
     return feature
 
-def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer,verbose=2):
-    """Loads a data file into a list of `InputBatch`s."""
+def worker_initializer(label_map1,tokenizer1,max_seq_length1,copy=True):
+    global label_map,tokenizer,max_seq_length
+    if copy:
+        label_map=copy.deepcopy(label_map1)
+        tokenizer=copy.deepcopy(tokenizer1)
+        max_seq_length=copy.deepcopy(max_seq_length1)
+    else:
+        label_map=label_map1
+        tokenizer=tokenizer1
+        max_seq_length=max_seq_length1
 
-    label_map = {label : i for i, label in enumerate(label_list)}
+
+def convert_examples_to_features(examples, label_map, max_seq_length, tokenizer,verbose=2,worker_num=30):
+    """Loads a data file into a list of `InputBatch`s."""
 
     features = []
 
-    _convertCore=partial(convertCore,label_map,tokenizer,max_seq_length)
 
-    batch_size=500 #configurable variable
-    batch_num=len(examples)//batch_size
-    if batch_num*batch_size<len(examples):
-        batch_num+=1
-    batches=[examples[i:i+batch_size] for i in range(0,len(examples),batch_size)]
-    worker_num=12
-    workers=ProcessPool(processes=worker_num)
+    if worker_num>1:
+        workers=ProcessPool(processes=worker_num,initializer=worker_initializer,initargs=(label_map,tokenizer,max_seq_length))
 
+        batch_size=500 #configurable variable
+        batch_num=len(examples)//batch_size
+        if batch_num*batch_size<len(examples):
+            batch_num+=1
+        batches=[examples[i:i+batch_size] for i in range(0,len(examples),batch_size)]
 
-    for batch in tqdm(batches,desc="convertingBatch"):
-        results=workers.map(_convertCore,batch)
-        features.extend(results)
+        for batch in tqdm(batches,desc="convertingBatch"):
+            results=workers.map(convertCore,batch)
+            features.extend(results)
 
-        #if verbose>0 and len(features)%batch_size==0:
-        #    logger.info("loaded {} features".format(len(features)))
+            #if verbose>0 and len(features)%batch_size==0:
+            #    logger.info("loaded {} features".format(len(features)))
+
+        workers.close()
+        workers.join()
+
+    else:
+        for example in tqdm(examples,desc="converting examples"):
+            feature=convertCore(example)
+            features.append(feature)
 
     logger.info("loaded {} features".format(len(features)))
-
-    workers.close()
-    workers.join()
 
     if verbose>1:
         for ex_index in range(min(5,len(examples))):
@@ -283,13 +286,12 @@ def convert_examples_to_features(examples, label_list, max_seq_length, tokenizer
             logger.info(
                     "segment_ids: %s" % " ".join([str(x) for x in features[ex_index].segment_ids]))
             logger.info("label: %s (id = %d)" % (example.label, features[ex_index].label_id))
-            logger.info("sim value: %d" % (features[ex_index].simValue))
 
 
     return features
 
 
-class SemanticRanker(object):
+class RelationSearcher(object):
     #running paprameters
     server_ip=None
     server_port=None
@@ -306,10 +308,10 @@ class SemanticRanker(object):
     do_lower_case=True
     batch_size=8
 
-    __default_label="0"
-    __default_value=0
+    label_map = {"duplicate":0,"direct":1,"transitive":2,"unrelated":3}
+    __default_label="unrelated"
 
-    def initRunningConfig(self,model:BertForSemanticPrediction):
+    def initRunningConfig(self, model:BertForLinkRelationPrediction):
         if self.server_ip and self.server_port:
             # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
             import ptvsd
@@ -355,7 +357,7 @@ class SemanticRanker(object):
 
     def __init__(self,model_dir,model_name):
 
-        model = BertForSemanticPrediction(BertConfig(os.path.join(model_dir,model_name+".json")), num_labels=4)
+        model = BertForLinkRelationPrediction(BertConfig(os.path.join(model_dir, model_name + ".json")), num_labels=4)
         logger.info("loading weghts for {}".format(model_name))
         model_state_dict = torch.load(os.path.join(model_dir,model_name+".bin"))
         model.load_state_dict(model_state_dict)
@@ -364,30 +366,28 @@ class SemanticRanker(object):
         self.tokenizer=BertTokenizer.from_pretrained(programmingalpha.BertBasePath, do_lower_case=self.do_lower_case)
         logger.info("ranker model init finished!!!")
 
-    def getSemanticPair(self,query_doc,docs,doc_ids):
+    def __getSemanticPair(self,query_doc,docs,doc_ids):
         examples=[]
         for (i,doc) in enumerate(docs):
             guid = "%s-%s" % (doc_ids[i], i)
             text_a = query_doc
             text_b = doc
-            value = self.__default_value
             label=self.__default_label
             examples.append(
-                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label,value=value)
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
             )
 
         return examples
 
-    def closest_docs(self,query_doc,docs,k=1):
+    def relationPredict(self,query_doc,docs,k=5):
         doc_texts=[f["text"] for f in docs]
         doc_ids=[f["Id"] for f in docs]
         doc_ids=np.array(doc_ids,dtype=str).reshape((-1,1))
 
-        eval_examples=self.getSemanticPair(query_doc,doc_texts,doc_ids)
+        eval_examples=self.__getSemanticPair(query_doc,doc_texts,doc_ids)
 
         eval_features = convert_examples_to_features(
-            eval_examples, [self.__default_label], self.max_seq_length, self.tokenizer,0)
-
+            eval_examples, self.label_map, self.max_seq_length, self.tokenizer,0,worker_num=10)
 
         all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
@@ -397,18 +397,17 @@ class SemanticRanker(object):
         eval_sampler = SequentialSampler(eval_data)
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=self.batch_size)
 
+        logits=self.getRelationProbability(eval_dataloader)
+        relations=np.argmax(logits,axis=1)
 
-        logits,simValues=self.computeSimvalue(eval_dataloader)
-
-        results=np.concatenate((doc_ids,simValues),axis=1).tolist()
-        results.sort(key=lambda x:float(x[1]),reverse=True)
+        results=np.concatenate((doc_ids,relations),axis=1).tolist()
+        results.sort(key=lambda x:int(x[1]),reverse=False)
         return results[:k]
 
-    def computeSimvalue(self,eval_dataloader:DataLoader):
+    def getRelationProbability(self,eval_dataloader:DataLoader):
         self.model.eval()
         device=self.device
         logits=[]
-        simValues=[]
 
         for input_ids, input_mask, segment_ids in tqdm(eval_dataloader,desc="computing simValue"):
             #logger.info("batch predicting")
@@ -417,16 +416,14 @@ class SemanticRanker(object):
             segment_ids = segment_ids.to(device)
 
             with torch.no_grad():
-                b_logits,b_simValues = self.model(input_ids, segment_ids, input_mask)
+                b_logits = self.model(input_ids, segment_ids, input_mask)
 
             b_logits = b_logits.detach().cpu().numpy()
 
-            b_simValues=b_simValues.detach().cpu().numpy()
 
             logits.append(b_logits)
-            simValues.append(b_simValues)
 
         logits=np.concatenate(logits,axis=0)
-        simValues=np.concatenate(simValues,axis=0)
-        return logits,simValues
+
+        return logits
 

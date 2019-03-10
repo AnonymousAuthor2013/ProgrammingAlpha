@@ -1,7 +1,7 @@
 from . import utils
 from ..DataSet.DBLoader import MongoStackExchange
 from .tfidf_doc_ranker import TfidfDocRanker
-from .bert_doc_ranker import SemanticRanker
+from .relation_searcher import RelationSearcher
 
 
 def set_default(key, value):
@@ -15,6 +15,6 @@ def get_class(name):
     if name == 'mongoDB':
         return MongoStackExchange
     if name=='semantic':
-        return SemanticRanker
+        return RelationSearcher
     raise RuntimeError('Invalid retriever class: %s' % name)
 
