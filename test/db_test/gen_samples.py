@@ -53,7 +53,7 @@ def inferenceGen():
     trainSet=[]
     validateSet=[]
     testSet=[]
-    validateSize=int(size*args.validate_ratio)
+    validateSize=args.validate_size//4
     testSize=args.test_size//4
     trainSize=size-validateSize-testSize
 
@@ -75,7 +75,6 @@ def inferenceGen():
     np.random.shuffle(trainSet)
     np.random.shuffle(validateSet)
     np.random.shuffle(testSet)
-
 
     inference_sample_file_train=os.path.join(programmingalpha.DataPath,"inference/train.json")
     inference_sample_file_validate=os.path.join(programmingalpha.DataPath,"inference/validate.json")
@@ -105,21 +104,25 @@ def seq2seqGen():
     dataSet=[]
     for record in tqdm.tqdm(data_samples,desc="retriving seq2seq samples(size)".format(size)):
         del record["_id"]
-        record["question"]=recoverSent(record["question"])
+        #record["question"]=recoverSent(record["question"])
         record["answer"]=recoverSent(record["answer"])
         record["context"]=recoverSent(record["context"])
+        if len(record["answer"].split())<10 or len(record["context"].split())<20:
+            continue
         dataSet.append(record)
 
-    #print(dataSet[:2])
+    size=len(dataSet)
 
     testSize=args.test_size
-    validateSize=int(args.validate_ratio*size)
+    validateSize=args.validate_size
     trainSize=size-testSize-validateSize
+    logger.info("train size={}, validate size={}, and test size={}".format(trainSize,validateSize,testSize))
 
     trainSet=dataSet[:trainSize]
     validateSet=dataSet[trainSize:trainSize+validateSize]
     testSet=dataSet[trainSize+validateSize:]
 
+    logger.info("train size={}, validate size={}, and test size={}".format(len(trainSet),len(validateSet),len(testSet)))
     trainSrc=map(lambda record:record["context"]+"\n",trainSet)
     trainDst=map(lambda record:record["answer"]+"\n",trainSet)
 
@@ -130,14 +133,14 @@ def seq2seqGen():
     testDst=map(lambda record:record["answer"]+"\n",testSet)
 
 
-    seq2seq_sample_file_train_src=os.path.join(programmingalpha.DataPath,"seq2seq/train-src.json")
-    seq2seq_sample_file_train_dst=os.path.join(programmingalpha.DataPath,"seq2seq/train-dst.json")
+    seq2seq_sample_file_train_src=os.path.join(programmingalpha.DataPath,"seq2seq/train-src")
+    seq2seq_sample_file_train_dst=os.path.join(programmingalpha.DataPath,"seq2seq/train-dst")
 
-    seq2seq_sample_file_validate_src=os.path.join(programmingalpha.DataPath,"seq2seq/validate-src.json")
-    seq2seq_sample_file_validate_dst=os.path.join(programmingalpha.DataPath,"seq2seq/validate-dst.json")
+    seq2seq_sample_file_validate_src=os.path.join(programmingalpha.DataPath,"seq2seq/validate-src")
+    seq2seq_sample_file_validate_dst=os.path.join(programmingalpha.DataPath,"seq2seq/validate-dst")
 
-    seq2seq_sample_file_test_src=os.path.join(programmingalpha.DataPath,"seq2seq/test-src.json")
-    seq2seq_sample_file_test_dst=os.path.join(programmingalpha.DataPath,"seq2seq/test-dst.json")
+    seq2seq_sample_file_test_src=os.path.join(programmingalpha.DataPath,"seq2seq/test-src")
+    seq2seq_sample_file_test_dst=os.path.join(programmingalpha.DataPath,"seq2seq/test-dst")
 
     logger.info("saving data to "+seq2seq_sample_file_train_src)
     with open(seq2seq_sample_file_train_src,"w") as f:
@@ -170,9 +173,9 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1000)
     parser.add_argument('--db', type=str, default="corpus")
     parser.add_argument('--maxSize', type=int, default=-1)
-    parser.add_argument('--task', type=str, default="seq2seq")
-    parser.add_argument('--validate_ratio', type=float, default=0.1)
-    parser.add_argument('--test_size', type=int, default=5000)
+    parser.add_argument('--task', type=str, default="inference")
+    parser.add_argument('--validate_size', type=int, default=10000)
+    parser.add_argument('--test_size', type=int, default=10000)
 
     args = parser.parse_args()
 

@@ -16,7 +16,7 @@ from pytorch_pretrained_bert import BertConfig
 from tqdm import tqdm, trange
 from multiprocessing import Pool as ProcessPool
 from functools import partial
-import copy
+from copy import deepcopy
 
 import logging
 logger = logging.getLogger(__name__)
@@ -217,16 +217,16 @@ def convertCore(example:InputExample):
 def worker_initializer(label_map1,tokenizer1,max_seq_length1,copy=True):
     global label_map,tokenizer,max_seq_length
     if copy:
-        label_map=copy.deepcopy(label_map1)
-        tokenizer=copy.deepcopy(tokenizer1)
-        max_seq_length=copy.deepcopy(max_seq_length1)
+        label_map=deepcopy(label_map1)
+        tokenizer=deepcopy(tokenizer1)
+        max_seq_length=deepcopy(max_seq_length1)
     else:
         label_map=label_map1
         tokenizer=tokenizer1
         max_seq_length=max_seq_length1
 
 
-def convert_examples_to_features(examples, label_map, max_seq_length, tokenizer,verbose=2,worker_num=30):
+def convert_examples_to_features(examples, label_map, max_seq_length, tokenizer,verbose=2,worker_num=56):
     """Loads a data file into a list of `InputBatch`s."""
 
     features = []
@@ -235,7 +235,7 @@ def convert_examples_to_features(examples, label_map, max_seq_length, tokenizer,
     if worker_num>1:
         workers=ProcessPool(processes=worker_num,initializer=worker_initializer,initargs=(label_map,tokenizer,max_seq_length))
 
-        batch_size=500 #configurable variable
+        batch_size=1000 #configurable variable
         batch_num=len(examples)//batch_size
         if batch_num*batch_size<len(examples):
             batch_num+=1

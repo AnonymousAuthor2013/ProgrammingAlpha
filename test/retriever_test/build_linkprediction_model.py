@@ -25,103 +25,29 @@ def accuracy(out, labels):
 def mseError(out,values):
     return np.mean(np.square(out-values))
 
+def saveModel(model):
+    output_model_file = os.path.join(args.output_dir, args.model_name+".bin")
+    output_config_file = os.path.join(args.output_dir, args.model_name+".json")
+
+    logger.info("saving model:{}".format(output_model_file))
+    model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
+    torch.save(model_to_save.state_dict(), output_model_file)
+    with open(output_config_file, 'w') as f:
+        f.write(model_to_save.config.to_json_string())
+
+def loadModel(num_labels):
+    # Load a trained model and config that you have fine-tuned
+    output_config_file = os.path.join(args.output_dir, args.model_name+".json")
+    output_model_file = os.path.join(args.output_dir, args.model_name+".bin")
+
+    config = BertConfig(output_config_file)
+    model = BertForLinkRelationPrediction(config, num_labels=num_labels)
+    logger.info("loading weights for model {} from {}".format(args.model_name,output_model_file))
+    model.load_state_dict(torch.load(output_model_file))
+
+    return model
+
 def main():
-    parser = argparse.ArgumentParser()
-
-    ## Required parameters
-    parser.add_argument("--model_name",
-                        default="BertBaseInference"+ ("" if not dataSource or dataSource=="" else "-"+dataSource),
-                        type=str,
-                        #required=True,
-                        help="The name of the model.")
-    parser.add_argument("--data_dir",
-                        default=programmingalpha.DataPath+"inference/",
-                        type=str,
-                        #required=True,
-                        help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
-    parser.add_argument("--bert_model", default=programmingalpha.BertBasePath, type=str,
-                        #required=True,
-                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
-                        "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
-                        "bert-base-multilingual-cased, bert-base-chinese.")
-    parser.add_argument("--task_name",
-                        default="semantic",
-                        type=str,
-                        #required=True,
-                        help="The name of the task to train.")
-    parser.add_argument("--output_dir",
-                        default=programmingalpha.ModelPath,
-                        type=str,
-                        #required=True,
-                        help="The output directory where the model predictions and checkpoints will be written.")
-
-    ## Other parameters
-    parser.add_argument("--cache_dir",
-                        default=None,
-                        type=str,
-                        help="Where do you want to store the pre-trained models downloaded from s3")
-    parser.add_argument("--max_seq_length",
-                        default=512,
-                        type=int,
-                        help="The maximum total input sequence length after WordPiece tokenization. \n"
-                             "Sequences longer than this will be truncated, and sequences shorter \n"
-                             "than this will be padded.")
-    parser.add_argument("--do_train",
-                        action='store_true',
-                        help="Whether to run training.")
-    parser.add_argument("--do_eval",
-                        action='store_true',
-                        help="Whether to run eval on the dev set.")
-    parser.add_argument("--do_lower_case",
-                        action='store_true',
-                        help="Set this flag if you are using an uncased model.")
-    parser.add_argument("--train_batch_size",
-                        default=32,
-                        type=int,
-                        help="Total batch size for training.")
-    parser.add_argument("--eval_batch_size",
-                        default=8,
-                        type=int,
-                        help="Total batch size for eval.")
-    parser.add_argument("--learning_rate",
-                        default=5e-5,
-                        type=float,
-                        help="The initial learning rate for Adam.")
-    parser.add_argument("--num_train_epochs",
-                        default=3.0,
-                        type=float,
-                        help="Total number of training epochs to perform.")
-    parser.add_argument("--warmup_proportion",
-                        default=0.1,
-                        type=float,
-                        help="Proportion of training to perform linear learning rate warmup for. "
-                             "E.g., 0.1 = 10%% of training.")
-    parser.add_argument("--no_cuda",
-                        action='store_true',
-                        help="Whether not to use CUDA when available")
-    parser.add_argument("--local_rank",
-                        type=int,
-                        default=-1,
-                        help="local_rank for distributed training on gpus")
-    parser.add_argument('--seed',
-                        type=int,
-                        default=42,
-                        help="random seed for initialization")
-    parser.add_argument('--gradient_accumulation_steps',
-                        type=int,
-                        default=10,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
-    parser.add_argument('--fp16',
-                        action='store_true',
-                        help="Whether to use 16-bit float precision instead of 32-bit")
-    parser.add_argument('--loss_scale',
-                        type=float, default=0,
-                        help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
-                             "0 (default value): dynamic loss scaling.\n"
-                             "Positive power of 2: static loss scaling value.\n")
-    parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
-    parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
-    args = parser.parse_args()
 
     if not args.do_train and not args.do_eval:
         args.do_train, args.do_eval=True,True
@@ -172,7 +98,7 @@ def main():
         raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train:
-        if input("Output directory ({}) already exists and is not empty, rewrite the files?(Y/N)\n".format(args.output_dir)) not in ("Y","y"):
+        if args.overwrite==False and input("Output directory ({}) already exists and is not empty, rewrite the files?(Y/N)\n".format(args.output_dir)) not in ("Y","y"):
             raise ValueError("Output directory ({}) already exists and is not empty.".format(args.output_dir))
     if not os.path.exists(args.output_dir):
         os.makedirs(args.output_dir)
@@ -188,185 +114,103 @@ def main():
 
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
 
-    train_examples = None
-    num_train_optimization_steps = None
+
+
+    # train and eval
     if args.do_train:
-        train_examples = processor.get_train_examples(args.data_dir)
-        num_train_optimization_steps = int(
-            len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
+        #configure model running parameters
+        train_examples = None
+        num_train_optimization_steps = None
+        if args.do_train:
+            train_examples = processor.get_train_examples(args.data_dir)
+            num_train_optimization_steps = int(
+                len(train_examples) / args.train_batch_size / args.gradient_accumulation_steps) * args.num_train_epochs
+            if args.local_rank != -1:
+                num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
+
+        # Prepare model
+        model = BertForLinkRelationPrediction.from_pretrained(args.bert_model,
+                                                              num_labels = num_labels)
+
+        if args.fp16:
+            model.half()
+        model.to(device)
         if args.local_rank != -1:
-            num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
+            try:
+                from apex.parallel import DistributedDataParallel as DDP
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
-    # Prepare model
-    cache_dir = args.cache_dir if args.cache_dir else os.path.join(PYTORCH_PRETRAINED_BERT_CACHE, 'distributed_{}'.format(args.local_rank))
-    model = BertForLinkRelationPrediction.from_pretrained(args.bert_model,
-                                                          #cache_dir=cache_dir,
-                                                          num_labels = num_labels)
-    '''
-    model_dict=model.state_dict()
-    print(model_dict.keys())
-    print(model_dict['bert.embeddings.word_embeddings.weight'].size(),model_dict['bert.embeddings.word_embeddings.weight'])
-    model_dict['bert.embeddings.word_embeddings.weight']=torch.ones_like(model_dict['bert.embeddings.word_embeddings.weight'])
-    model.load_state_dict(model_dict)
-    model_dict=model.state_dict()
-    print(model_dict['bert.embeddings.word_embeddings.weight'])
-    '''
+            model = DDP(model)
+        elif n_gpu > 1:
+            model = torch.nn.DataParallel(model)
 
-    if args.fp16:
-        model.half()
-    model.to(device)
-    if args.local_rank != -1:
-        try:
-            from apex.parallel import DistributedDataParallel as DDP
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
+        # Prepare optimizer
+        param_optimizer = list(model.named_parameters())
+        no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
+        optimizer_grouped_parameters = [
+            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+            ]
+        if args.fp16:
+            try:
+                from apex.optimizers import FP16_Optimizer
+                from apex.optimizers import FusedAdam
+            except ImportError:
+                raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
 
-        model = DDP(model)
-    elif n_gpu > 1:
-        model = torch.nn.DataParallel(model)
+            optimizer = FusedAdam(optimizer_grouped_parameters,
+                                  lr=args.learning_rate,
+                                  bias_correction=False,
+                                  max_grad_norm=1.0)
+            if args.loss_scale == 0:
+                optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
+            else:
+                optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
 
-    # Prepare optimizer
-    param_optimizer = list(model.named_parameters())
-    no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
-    optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-        {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
-        ]
-    if args.fp16:
-        try:
-            from apex.optimizers import FP16_Optimizer
-            from apex.optimizers import FusedAdam
-        except ImportError:
-            raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use distributed and fp16 training.")
-
-        optimizer = FusedAdam(optimizer_grouped_parameters,
-                              lr=args.learning_rate,
-                              bias_correction=False,
-                              max_grad_norm=1.0)
-        if args.loss_scale == 0:
-            optimizer = FP16_Optimizer(optimizer, dynamic_loss_scale=True)
         else:
-            optimizer = FP16_Optimizer(optimizer, static_loss_scale=args.loss_scale)
+            optimizer = BertAdam(optimizer_grouped_parameters,
+                                 lr=args.learning_rate,
+                                 warmup=args.warmup_proportion,
+                                 t_total=num_train_optimization_steps)
 
-    else:
-        optimizer = BertAdam(optimizer_grouped_parameters,
-                             lr=args.learning_rate,
-                             warmup=args.warmup_proportion,
-                             t_total=num_train_optimization_steps)
-
-    global_step = 0
-    nb_tr_steps = 0
-    tr_loss = 0
-    if args.do_train:
+        #preppare train data
         train_features = convert_examples_to_features(
             train_examples, labelMap, args.max_seq_length, tokenizer)
-        logger.info("***** Running training *****")
-        logger.info("  Num examples = %d", len(train_examples))
-        logger.info("  Batch size = %d", args.train_batch_size)
-        logger.info("  Num steps = %d", num_train_optimization_steps)
+
         all_input_ids = torch.tensor([f.input_ids for f in train_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in train_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in train_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in train_features], dtype=torch.long)
         train_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
 
-
         if args.local_rank == -1:
             train_sampler = RandomSampler(train_data)
         else:
             train_sampler = DistributedSampler(train_data)
-        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
-
-        model.train()
-        for _ in trange(int(args.num_train_epochs), desc="Epoch"):
-            tr_loss = 0
-            nb_tr_examples, nb_tr_steps = 0, 0
-            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
-                batch = tuple(t.to(device) for t in batch)
-                input_ids, input_mask, segment_ids, label_ids = batch
-
-                input_ids=input_ids.to(device)
-                input_mask=input_mask.to(device)
-                segment_ids=segment_ids.to(device)
-                label_ids=label_ids.to(device)
-
-                loss = model(input_ids, segment_ids, input_mask, label_ids)
-                #logger.info("loss:{}({},{}), and loss_partial:{}".format(loss,loss[0],loss[1],loss_partial))
-
-                if n_gpu > 1:
-                    loss = loss.mean() # mean() to average on multi-gpu.
-                if args.gradient_accumulation_steps > 1:
-                    loss = loss / args.gradient_accumulation_steps
-
-                if args.fp16:
-                    optimizer.backward(loss)
-                else:
-                    loss.backward()
-
-                tr_loss += loss.item()
-                nb_tr_examples += input_ids.size(0)
-                nb_tr_steps += 1
-                if (step + 1) % args.gradient_accumulation_steps == 0:
-                    if args.fp16:
-                        # modify learning rate with special warm up BERT uses
-                        # if args.fp16 is False, BertAdam is used that handles this automatically
-                        lr_this_step = args.learning_rate * warmup_linear(global_step/num_train_optimization_steps, args.warmup_proportion)
-                        for param_group in optimizer.param_groups:
-                            param_group['lr'] = lr_this_step
-                    optimizer.step()
-                    optimizer.zero_grad()
-                    global_step += 1
-
-    if args.do_train:
-        # Save a trained model and the associated configuration
-        model_to_save = model.module if hasattr(model, 'module') else model  # Only save the model it-self
-        output_model_file = os.path.join(args.output_dir, args.model_name+".bin")
-        torch.save(model_to_save.state_dict(), output_model_file)
-        output_config_file = os.path.join(args.output_dir, args.model_name+".json")
-        with open(output_config_file, 'w') as f:
-            f.write(model_to_save.config.to_json_string())
-
-        # Load a trained model and config that you have fine-tuned
-        config = BertConfig(output_config_file)
-        model = BertForLinkRelationPrediction(config, num_labels=num_labels)
-        model.load_state_dict(torch.load(output_model_file))
-    else:
-        #model = BertForLinkRelationPrediction.from_pretrained(args.bert_model, num_labels=num_labels)
-        model= BertForLinkRelationPrediction(BertConfig(os.path.join(args.output_dir, args.model_name + ".json")), num_labels=num_labels)
-        logger.info("loading weights for model {}".format(args.model_name))
-        model.load_state_dict(torch.load(os.path.join(args.output_dir,args.model_name+".bin")))
-
-    model.to(device)
-
-    #sranker=RelationSearcher(args.output_dir,args.model_name)
 
 
-    if args.do_eval and (args.local_rank == -1 or torch.distributed.get_rank() == 0):
+    if args.do_eval or args.do_train:
         eval_examples = processor.get_dev_examples(args.data_dir)
         eval_features = convert_examples_to_features(
             eval_examples, labelMap, args.max_seq_length, tokenizer)
-        logger.info("***** Running evaluation *****")
-        logger.info("  Num examples = %d", len(eval_examples))
-        logger.info("  Batch size = %d", args.eval_batch_size)
+
         all_input_ids = torch.tensor([f.input_ids for f in eval_features], dtype=torch.long)
         all_input_mask = torch.tensor([f.input_mask for f in eval_features], dtype=torch.long)
         all_segment_ids = torch.tensor([f.segment_ids for f in eval_features], dtype=torch.long)
         all_label_ids = torch.tensor([f.label_id for f in eval_features], dtype=torch.long)
 
         eval_data = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
-        test_data=TensorDataset(all_input_ids, all_input_mask, all_segment_ids)
 
         # Run prediction for full data
         eval_sampler = SequentialSampler(eval_data)
-        test_sampler=SequentialSampler(test_data)
+
+    def _eval_epoch(model):
+        logger.info("***** Running evaluation *****")
+        logger.info("  Num examples = %d", len(eval_examples))
+        logger.info("  Batch size = %d", args.eval_batch_size)
+
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
-        test_dataloader=DataLoader(test_data,sampler=test_sampler,batch_size=args.eval_batch_size)
-
-        #out_logits =sranker.computeSimvalue(test_dataloader)
-        #print(out_logits.shape)
-        #print(out_logits[:3])
-
-
 
         model.eval()
         eval_loss, eval_accuracy, eval_error = 0, 0, 0
@@ -399,22 +243,192 @@ def main():
 
         eval_loss = eval_loss / nb_eval_steps
         eval_accuracy = eval_accuracy / nb_eval_examples
-        loss = tr_loss/nb_tr_steps if args.do_train else None
-        result = {'eval_loss': eval_loss,
-                  'eval_accuracy': eval_accuracy,
-                  'global_step': global_step,
-                  'loss': loss}
 
-        output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-        with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                logger.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
+        return eval_accuracy, eval_loss
 
+    def _train_epoch(epoch_num):
+        logger.info("***** Running training *****")
+        logger.info("  Num examples = %d", len(train_examples))
+        logger.info("  Batch size = %d", args.train_batch_size)
+        logger.info("  Num steps = %d", num_train_optimization_steps)
+
+        global_step = 0
+        best_eval_acc=0.0
+
+        train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=args.train_batch_size)
+
+        model.train()
+        for _ in range(epoch_num,):
+            logger.info("Epoch_num:{}/{}".format(_,epoch_num))
+
+            tr_loss = 0
+            nb_tr_examples, nb_tr_steps = 0, 0
+            for step, batch in enumerate(tqdm(train_dataloader, desc="Iteration")):
+
+                batch = tuple(t.to(device) for t in batch)
+                input_ids, input_mask, segment_ids, label_ids = batch
+
+                input_ids=input_ids.to(device)
+                input_mask=input_mask.to(device)
+                segment_ids=segment_ids.to(device)
+                label_ids=label_ids.to(device)
+
+                loss = model(input_ids, segment_ids, input_mask, label_ids)
+
+                if n_gpu > 1:
+                    loss = loss.mean() # mean() to average on multi-gpu.
+                if args.gradient_accumulation_steps > 1:
+                    loss = loss / args.gradient_accumulation_steps
+
+                if args.fp16:
+                    optimizer.backward(loss)
+                else:
+                    loss.backward()
+
+                tr_loss += loss.item()
+                nb_tr_examples += input_ids.size(0)
+                nb_tr_steps += 1
+                if (step + 1) % args.gradient_accumulation_steps == 0:
+                    if args.fp16:
+                        # modify learning rate with special warm up BERT uses
+                        # if args.fp16 is False, BertAdam is used that handles this automatically
+                        lr_this_step = args.learning_rate * warmup_linear(global_step/num_train_optimization_steps, args.warmup_proportion)
+                        for param_group in optimizer.param_groups:
+                            param_group['lr'] = lr_this_step
+                    optimizer.step()
+                    optimizer.zero_grad()
+                    global_step += 1
+
+                # save Model
+                if (1+step)%args.eval_step_size==0:
+                    eval_acc,eval_loss=_eval_epoch(model)
+                    if eval_acc>best_eval_acc:
+                        saveModel(model)
+                        best_eval_acc=eval_acc
+
+                    logger.info("global step:{}, eval_accuracy:{}, eval_loss:{}, best eval_acc:{}".format(
+                        global_step,eval_acc,eval_loss,best_eval_acc)
+                    )
+
+
+    if args.do_train:
+        _train_epoch(int(args.num_train_epochs))
+    elif args.do_eval:
+        model=loadModel(num_labels)
+        model.to(device)
+        _eval_epoch(model)
 
 
 if __name__ == "__main__":
-
     dataSource=""
+
+    parser = argparse.ArgumentParser()
+
+    ## Required parameters
+    parser.add_argument("--model_name",
+                        default="BertBaseInference"+ ("" if not dataSource or dataSource=="" else "-"+dataSource),
+                        type=str,
+                        #required=True,
+                        help="The name of the model.")
+    parser.add_argument("--data_dir",
+                        default=programmingalpha.DataPath+"inference/",
+                        type=str,
+                        #required=True,
+                        help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
+
+    parser.add_argument("--overwrite",
+                        action="store_true",
+                        help="overwrite saved model folder")
+
+    parser.add_argument("--bert_model", default=programmingalpha.BertBasePath, type=str,
+                        #required=True,
+                        help="Bert pre-trained model selected in the list: bert-base-uncased, "
+                        "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
+                        "bert-base-multilingual-cased, bert-base-chinese.")
+    parser.add_argument("--task_name",
+                        default="semantic",
+                        type=str,
+                        #required=True,
+                        help="The name of the task to train.")
+    parser.add_argument("--output_dir",
+                        default=programmingalpha.ModelPath,
+                        type=str,
+                        #required=True,
+                        help="The output directory where the model predictions and checkpoints will be written.")
+
+    ## Other parameters
+    parser.add_argument("--cache_dir",
+                        default=None,
+                        type=str,
+                        help="Where do you want to store the pre-trained models downloaded from s3")
+    parser.add_argument("--max_seq_length",
+                        default=512,
+                        type=int,
+                        help="The maximum total input sequence length after WordPiece tokenization. \n"
+                             "Sequences longer than this will be truncated, and sequences shorter \n"
+                             "than this will be padded.")
+    parser.add_argument("--do_train",
+                        action='store_true',
+                        help="Whether to run training.")
+    parser.add_argument("--do_eval",
+                        action='store_true',
+                        help="Whether to run eval on the dev set.")
+    parser.add_argument("--do_lower_case",
+                        action='store_true',
+                        help="Set this flag if you are using an uncased model.")
+    parser.add_argument("--train_batch_size",
+                        default=256,
+                        type=int,
+                        help="Total batch size for training.")
+
+    parser.add_argument("--eval_step_size",
+                        default=1000,
+                        type=int,
+                        help="eval model performance after several steps")
+
+    parser.add_argument("--eval_batch_size",
+                        default=256,
+                        type=int,
+                        help="Total batch size for eval.")
+    parser.add_argument("--learning_rate",
+                        default=5e-5,
+                        type=float,
+                        help="The initial learning rate for Adam.")
+    parser.add_argument("--num_train_epochs",
+                        default=3.0,
+                        type=float,
+                        help="Total number of training epochs to perform.")
+    parser.add_argument("--warmup_proportion",
+                        default=0.1,
+                        type=float,
+                        help="Proportion of training to perform linear learning rate warmup for. "
+                             "E.g., 0.1 = 10%% of training.")
+    parser.add_argument("--no_cuda",
+                        action='store_true',
+                        help="Whether not to use CUDA when available")
+    parser.add_argument("--local_rank",
+                        type=int,
+                        default=-1,
+                        help="local_rank for distributed training on gpus")
+    parser.add_argument('--seed',
+                        type=int,
+                        default=42,
+                        help="random seed for initialization")
+    parser.add_argument('--gradient_accumulation_steps',
+                        type=int,
+                        default=10,
+                        help="Number of updates steps to accumulate before performing a backward/update pass.")
+    parser.add_argument('--fp16',
+                        action='store_true',
+                        help="Whether to use 16-bit float precision instead of 32-bit")
+    parser.add_argument('--loss_scale',
+                        type=float, default=0,
+                        help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
+                             "0 (default value): dynamic loss scaling.\n"
+                             "Positive power of 2: static loss scaling value.\n")
+    parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
+    parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
+    args = parser.parse_args()
+    print(args.train_batch_size)
+    print(args)
     main()

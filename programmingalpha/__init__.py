@@ -20,6 +20,11 @@ Glove42="/home/LAB/zhangzy/ShareModels/Embeddings/glove.42B/"
 Glove840="/home/LAB/zhangzy/ShareModels/Embeddings/glove.840B/"
 Glove6="/home/LAB/zhangzy/ShareModels/Embeddings/glove.6B/"
 GloveStack="/home/LAB/zhangzy/ShareModels/Embeddings/stackexchange/"
+Bert768="/home/LAB/zhangzy/ShareModels/Embeddings/bert/"
+openAI768="/home/LAB/zhangzy/ShareModels/Embeddings/openAI/"
+
+
+
 
 def loadConfig(filename):
     with open(filename,"r") as f:
