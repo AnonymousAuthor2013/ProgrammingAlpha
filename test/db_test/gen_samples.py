@@ -6,6 +6,7 @@ import programmingalpha
 import os
 import json
 import logging
+from collections import Counter
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -13,9 +14,14 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
 
 logger = logging.getLogger(__name__)
 
-def recoverSent(texts):
+
+def recoverSent(texts,tokenizer=None):
     text=" ".join(texts)
-    text=" ".join(text.split())
+    if tokenizer is None:
+        text=" ".join(text.split())
+    else:
+        text=" ".join(tokenizer.tokenize(text))
+
 
     return text
 
@@ -50,13 +56,9 @@ def inferenceGen():
         ]
     queries=[query1,query2,query3,query4]
 
-    trainSet=[]
-    validateSet=[]
-    testSet=[]
-    validateSize=args.validate_size//4
-    testSize=args.test_size//4
-    trainSize=size-validateSize-testSize
+    dataSet=[]
 
+    labels=[]
     for query in queries:
         data=[]
         data_samples=list(collection.aggregate(pipeline=query,allowDiskUse=True))
@@ -64,33 +66,26 @@ def inferenceGen():
             del record["_id"]
             record["q1"]=recoverSent(record["q1"])
             record["q2"]=recoverSent(record["q2"])
+            if len(record["q1"].split())<20 or len(record["q2"].split())<20:
+                continue
+            labels.append(record["label"])
             data.append(json.dumps(record)+"\n")
 
-        trainSet.extend(data[:trainSize])
-        validateSet.extend(data[trainSize:trainSize+validateSize])
-        testSet.extend(data[trainSize+validateSize:])
 
+        dataSet.extend(data)
         data.clear()
 
-    np.random.shuffle(trainSet)
-    np.random.shuffle(validateSet)
-    np.random.shuffle(testSet)
+    logger.info("laebls:{}".format(Counter(labels)))
 
-    inference_sample_file_train=os.path.join(programmingalpha.DataPath,"inference/train.json")
-    inference_sample_file_validate=os.path.join(programmingalpha.DataPath,"inference/validate.json")
-    inference_sample_file_test=os.path.join(programmingalpha.DataPath,"inference/test.json")
+    np.random.shuffle(dataSet)
 
-    logger.info("saving data to "+inference_sample_file_train)
-    with open(inference_sample_file_train,"w") as f:
-        f.writelines(trainSet)
+    inference_sample_file=os.path.join(programmingalpha.DataPath,"inference/data.json")
 
-    logger.info("saving data to "+inference_sample_file_validate)
-    with open(inference_sample_file_validate,"w") as f:
-        f.writelines(validateSet)
+    logger.info("saving data to "+inference_sample_file)
+    with open(inference_sample_file,"w") as f:
+        f.writelines(dataSet)
 
-    logger.info("saving data to "+inference_sample_file_test)
-    with open(inference_sample_file_test,"w") as f:
-        f.writelines(testSet)
+
 
 def seq2seqGen():
     collection=docDB.stackdb["seq2seq"]
@@ -107,64 +102,67 @@ def seq2seqGen():
         #record["question"]=recoverSent(record["question"])
         record["answer"]=recoverSent(record["answer"])
         record["context"]=recoverSent(record["context"])
-        if len(record["answer"].split())<10 or len(record["context"].split())<20:
+        record["question"]=recoverSent(record["question"])
+        if len(record["answer"].split())<10 or len(record["context"].split())<20 or len(record["question"].split())<10:
             continue
         dataSet.append(record)
 
-    size=len(dataSet)
 
-    testSize=args.test_size
-    validateSize=args.validate_size
-    trainSize=size-testSize-validateSize
-    logger.info("train size={}, validate size={}, and test size={}".format(trainSize,validateSize,testSize))
+    def _constructSrc(record):
+        question=record["question"]
+        context=record["answer"]
+        seq_src=[]
+        question_tokens=question.split()
+        context_tokens=context.split()
 
-    trainSet=dataSet[:trainSize]
-    validateSet=dataSet[trainSize:trainSize+validateSize]
-    testSet=dataSet[trainSize+validateSize:]
-
-    logger.info("train size={}, validate size={}, and test size={}".format(len(trainSet),len(validateSet),len(testSet)))
-    trainSrc=map(lambda record:record["context"]+"\n",trainSet)
-    trainDst=map(lambda record:record["answer"]+"\n",trainSet)
-
-    validateSrc=map(lambda record:record["context"]+"\n",validateSet)
-    validateDst=map(lambda record:record["answer"]+"\n",validateSet)
-
-    testSrc=map(lambda record:record["context"]+"\n",testSet)
-    testDst=map(lambda record:record["answer"]+"\n",testSet)
+        q_len=min(args.questionLen,len(question_tokens))
+        for i in range(q_len):
+            seq_src.append(question_tokens[i])
 
 
-    seq2seq_sample_file_train_src=os.path.join(programmingalpha.DataPath,"seq2seq/train-src")
-    seq2seq_sample_file_train_dst=os.path.join(programmingalpha.DataPath,"seq2seq/train-dst")
+        left_len=args.contextLen+args.questionLen-len(seq_src)
 
-    seq2seq_sample_file_validate_src=os.path.join(programmingalpha.DataPath,"seq2seq/validate-src")
-    seq2seq_sample_file_validate_dst=os.path.join(programmingalpha.DataPath,"seq2seq/validate-dst")
 
-    seq2seq_sample_file_test_src=os.path.join(programmingalpha.DataPath,"seq2seq/test-src")
-    seq2seq_sample_file_test_dst=os.path.join(programmingalpha.DataPath,"seq2seq/test-dst")
+        c_len=min(len(context_tokens),left_len)
+        for i in range(c_len):
+            if len(seq_src)>=left_len:
+                break
+            seq_src.append(context_tokens[i])
+            i+=1
 
-    logger.info("saving data to "+seq2seq_sample_file_train_src)
-    with open(seq2seq_sample_file_train_src,"w") as f:
-        f.writelines(trainSrc)
 
-    logger.info("saving data to "+seq2seq_sample_file_train_dst)
-    with open(seq2seq_sample_file_train_dst,"w") as f:
-        f.writelines(trainDst)
+        assert len(seq_src)<=args.questionLen+args.contextLen
 
-    logger.info("saving data to "+seq2seq_sample_file_validate_src)
-    with open(seq2seq_sample_file_validate_src,"w") as f:
-        f.writelines(validateSrc)
+        return " ".join(seq_src)+"\n"
 
-    logger.info("saving data to "+seq2seq_sample_file_validate_dst)
-    with open(seq2seq_sample_file_validate_dst,"w") as f:
-        f.writelines(validateDst)
+    def _constructDst(record):
+        answer=record["answer"]
+        answer_tokens=answer.split()
+        seq_tgt=[]
+        ans_len=min(args.answerLen,len(answer_tokens))
+        for i in range(ans_len):
+            seq_tgt.append(answer_tokens[i])
 
-    logger.info("saving data to "+seq2seq_sample_file_test_src)
-    with open(seq2seq_sample_file_test_src,"w") as f:
-        f.writelines(testSrc)
+        assert len(seq_tgt)<=args.answerLen
 
-    logger.info("saving data to "+seq2seq_sample_file_test_dst)
-    with open(seq2seq_sample_file_test_dst,"w") as f:
-        f.writelines(testDst)
+        return " ".join(seq_tgt)+"\n"
+
+    logger.info("data size={}".format(len(dataSet)))
+    dataSrc=map(_constructSrc,dataSet)
+    dataDst=map(_constructDst,dataSet)
+
+
+    seq2seq_sample_file_src=os.path.join(programmingalpha.DataPath,"seq2seq/data-src")
+    seq2seq_sample_file_dst=os.path.join(programmingalpha.DataPath,"seq2seq/data-dst")
+
+
+    logger.info("saving data to "+seq2seq_sample_file_src)
+    with open(seq2seq_sample_file_src,"w") as f:
+        f.writelines(dataSrc)
+
+    logger.info("saving data to "+seq2seq_sample_file_dst)
+    with open(seq2seq_sample_file_dst,"w") as f:
+        f.writelines(dataDst)
 
 
 if __name__ == '__main__':
@@ -173,9 +171,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=1000)
     parser.add_argument('--db', type=str, default="corpus")
     parser.add_argument('--maxSize', type=int, default=-1)
-    parser.add_argument('--task', type=str, default="inference")
-    parser.add_argument('--validate_size', type=int, default=10000)
-    parser.add_argument('--test_size', type=int, default=10000)
+    parser.add_argument('--task', type=str, default="seq2seq")
+    parser.add_argument('--contextLen', type=int, default=450)
+    parser.add_argument('--questionLen', type=int, default=62)
+    parser.add_argument('--answerLen', type=int, default=510)
 
     args = parser.parse_args()
 

@@ -8,6 +8,9 @@ import onmt
 import argparse
 import programmingalpha
 import logging
+from onmt.utils.parse import ArgumentParser
+import onmt.opts as opts
+
 #from programmingalpha.models.openNMT_utils import paralleltrainer
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -15,42 +18,47 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
 logger = logging.getLogger(__name__)
 
 
-def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files=None):
-    model,vocab_fields=textGen.transformer,textGen.vocab_fields
+def trainModel(textGen:TextGeneratorModel,opt,vocab_fields,train_data_files=None,valid_data_files=None):
+    model=textGen.transformer
     #init random state
     #define some hyper-paprameters
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    random.seed(opt.seed)
+    np.random.seed(opt.seed)
+    torch.manual_seed(opt.seed)
 
+    n_gpu=len(opt.gpu_ranks)
 
-    device = "cuda" if args.n_gpu>0 and torch.cuda.is_available() else "cpu"
-    if args.fp16:
-        model.half()
-        model_type="fp16"
-    else:
-        model_type="fp32"
+    device = "cuda" if n_gpu>0 and torch.cuda.is_available() else "cpu"
 
-    if args.n_gpu>1:
+    gpu_rank=0
+
+    if n_gpu>1:
         model=nn.DataParallel(model)
-        args.n_gpu=1
-    if args.n_gpu<1:
-        args.gpu_rank=-1
+        n_gpu=1
 
+    if  n_gpu<1:
+        gpu_rank=-1
+    else:
+        gpu_rank=opt.gpu_ranks[0]
 
+    logger.info("gpu rank={}, gpu num={}, device={}".format(gpu_rank,n_gpu,device))
+
+    torch.cuda.set_device(gpu_rank)
     model.to(torch.device(device))
 
-    # extract fields
+    #fields data
     src_text_field = vocab_fields["src"].base_field
     src_vocab = src_text_field.vocab
+    src_padding = src_vocab.stoi[src_text_field.pad_token]
 
     tgt_text_field = vocab_fields['tgt'].base_field
     tgt_vocab = tgt_text_field.vocab
+    tgt_padding = tgt_vocab.stoi[tgt_text_field.pad_token]
 
     #define loss
     loss=onmt.modules.CopyGeneratorLossCompute(
-        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=len(tgt_vocab), force_copy=False,
-                    unk_index=tgt_vocab.stoi[tgt_text_field.unk_token],ignore_index=tgt_vocab.stoi[tgt_text_field.pad_token], eps=1e-20),
+        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=textGen.tgt_vocab_size, force_copy=False,
+                    unk_index=0,ignore_index=1, eps=1e-20),
         generator=(model.module if hasattr(model, 'module') else model).generator,
         tgt_vocab=tgt_vocab, normalize_by_length=True
     )
@@ -66,7 +74,7 @@ def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files
     '''
 
     #configure optimizer
-    lr = args.learning_rate
+    lr = opt.learning_rate
 
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -75,9 +83,9 @@ def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files
             {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
             ]
 
-
-    bert_optimizer = bertOptimizer.BertAdam(params=optimizer_grouped_parameters, lr=lr, warmup=args.warmup_proportion,
-                                            t_total=args.num_train_steps
+    warmup_proportion=opt.warmup_steps/opt.train_steps
+    bert_optimizer = bertOptimizer.BertAdam(params=optimizer_grouped_parameters, lr=lr, warmup=warmup_proportion,
+                                            t_total=opt.train_steps
                                             )
 
     optim = onmt.utils.optimizers.Optimizer(
@@ -89,7 +97,7 @@ def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files
 
     train_iter = onmt.inputters.inputter.DatasetLazyIter(dataset_paths=train_data_files,
                                                          fields=vocab_fields,
-                                                         batch_size=args.train_batch_size,
+                                                         batch_size=opt.batch_size,
                                                          batch_size_multiple=1,
                                                          batch_size_fn=None,
                                                          device=device,
@@ -98,7 +106,7 @@ def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files
 
     valid_iter = onmt.inputters.inputter.DatasetLazyIter(dataset_paths=valid_data_files,
                                                          fields=vocab_fields,
-                                                         batch_size=args.eval_batch_size,
+                                                         batch_size=opt.batch_size,
                                                          batch_size_multiple=1,
                                                          batch_size_fn=None,
                                                          device=device,
@@ -106,30 +114,30 @@ def trainModel(textGen:TextGeneratorModel,train_data_files=None,valid_data_files
                                                          repeat=False)
 
     report_manager = onmt.utils.ReportMgr(
-        report_every=args.eval_steps, start_time=-1, tensorboard_writer=None)
+        report_every=opt.valid_steps, start_time=-1, tensorboard_writer=None)
 
-    saver=onmt.models.ModelSaver(base_path=textGen.modelPath,
+    saver=onmt.models.ModelSaver(base_path=opt.save_model,
                                  model=model.module if hasattr(model, 'module') else model,
-                                 model_opt=args,
-                                 fields=textGen.vocab_fields,
-                                 optim=optim,keep_checkpoint=args.keep_checkpoints)
+                                 model_opt=opt,
+                                 fields=vocab_fields,
+                                 optim=optim,keep_checkpoint=opt.keep_checkpoint)
 
     trainer = onmt.Trainer(model=model,
                            train_loss=loss,
                            valid_loss=loss,
-                           optim=optim,shard_size=32,grad_accum_count=args.gradient_accumulation_steps,
+                           optim=optim,shard_size=32,grad_accum_count=opt.accum_count,
                            report_manager=report_manager,
-                           model_saver=saver,n_gpu=args.n_gpu,gpu_rank=args.gpu_rank,
-                           model_dtype=model_type)
+                           model_saver=saver,n_gpu=n_gpu,gpu_rank=gpu_rank,
+                           model_dtype=opt.model_type)
 
     trainer.train(train_iter=train_iter,
-                  train_steps=args.num_train_steps,
+                  train_steps=opt.train_steps,
                   valid_iter=valid_iter,
-                  valid_steps=args.eval_steps,
-                  save_checkpoint_steps=args.save_steps)
+                  valid_steps=opt.valid_steps,
+                  save_checkpoint_steps=opt.save_checkpoint_steps)
 
 
-def generateText(textGen:TextGeneratorModel,test_data_file):
+def generateText(textGen:TextGeneratorModel,test_data_file,opt):
     from onmt import translate
     from onmt import inputters
 
@@ -140,12 +148,12 @@ def generateText(textGen:TextGeneratorModel,test_data_file):
                                              length_penalty="avg",
                                              coverage_penalty="none")
 
-    device = "cuda" if args.n_gpu>0 and torch.cuda.is_available() else "cpu"
+    device = "cuda" if opt.gpu_ranks>0 and torch.cuda.is_available() else "cpu"
 
     model=textGen.transformer
-    vocab_fields=textGen.vocab_fields
-    batch_size=args.eval_batch_size
-    gpu = args.gpu_rank if device=="cuda" else -1
+    vocab_fields=torch.load(opt.data+"/vocab.pt")
+    batch_size=4
+    gpu = opt.gpu_ranks[0] if device=="cuda" else -1
 
     model.to(torch.device(device))
 
@@ -177,22 +185,18 @@ def generateText(textGen:TextGeneratorModel,test_data_file):
         for trans in translations:
             print(trans.log(0))
 
+def runPrediction(opt):
 
-def runPrediction():
-    data_dir=args.data_dir
-    TextGeneratorModel.vocab_data_file=data_dir+"/knowledgeData.vocab.pt"
-    TextGeneratorModel.vocab_file=data_dir+"/vocab.txt"
-    TextGeneratorModel.modelPath=args.save_path
-    textGen=TextGeneratorModel()
-    textGen.loadModel(6000)
+    #textGen=TextGeneratorModel()
+    #textGen.loadModel("/home/LAB/zhangzy/ProjectModels/knowledgeComprehension_step_6000.pt")
 
     # Load some data
-    validate_data_files=[ "/home/LAB/zhangzy/ProjectData/openNMT/knowledgeData.valid.0.pt" ]
+    #validate_data_files=[ "/home/LAB/zhangzy/ProjectData/openNMT/knowledgeData.valid.0.pt" ]
 
-
-    '''
+    vocab_fields=torch.load("/home/LAB/zhangzy/ProjectData/openNMT/knowledgeData.vocab.pt")
+    #'''
     #load vocabs
-    vocab_fields = textGen.vocab_fields
+    vocab_fields = vocab_fields
 
     src_text_field = vocab_fields["src"].base_field
     src_vocab = src_text_field.vocab
@@ -203,32 +207,30 @@ def runPrediction():
     print(src_text_field.pad_token,src_text_field.eos_token,src_text_field.init_token,src_text_field.unk_token)
     print(tgt_text_field.pad_token,tgt_text_field.eos_token,tgt_text_field.init_token,tgt_text_field.unk_token)
 
-    vocabs=textGen.tokenizer.vocab
-    print(type(src_vocab.stoi),type(tgt_vocab.stoi),type(vocabs))
+    print(type(src_vocab.stoi),type(tgt_vocab.stoi))
     count=0
     conflicts=[]
     for k in tgt_vocab.stoi:
         idx1=tgt_vocab.stoi[k]
         idx2=src_vocab.stoi[k]
-        idx3=vocabs[k]
-        print(k,idx1,idx2,idx3)
+        if idx1<100:
+            print(k,idx1,idx2)
         try:
-            assert idx1==idx2 and idx1==idx3
+            assert idx1==idx2
         except:
             count+=1
-            conflicts.append((k,idx1,idx2,idx3))
-        print(k,tgt_vocab.stoi[k],src_vocab.stoi[k],vocabs[k])
+            conflicts.append((k,idx1,idx2))
 
     print(count)
     print(conflicts)
-    '''
+    #'''
 
-    generateText(textGen,validate_data_files[0])
+    #generateText(textGen,validate_data_files[0],opt)
 
-def runTrain():
+def runTrain(opt):
     import os
-    data_dir=args.data_dir
-
+    data_dir=opt.data
+    data_dir=data_dir[:1+data_dir.rfind("/")]
     train_data_files=[]
     validate_data_files=[]
 
@@ -241,82 +243,35 @@ def runTrain():
     logger.info("train files:{}".format(train_data_files))
     logger.info("validate files:{}".format(validate_data_files))
 
-    TextGeneratorModel.vocab_data_file=data_dir+"/knowledgeData.vocab.pt"
-    TextGeneratorModel.vocab_file=data_dir+"/vocab.txt"
-    TextGeneratorModel.modelPath=args.save_path
+    vocab_data=opt.data+".vocab.pt"
+    logger.info("loading vocab from {}".format(vocab_data))
+    vocab_fields=torch.load(vocab_data)
 
+    TextGeneratorModel.layer_num=opt.layers
     textGen=TextGeneratorModel()
 
-    trainModel(textGen,train_data_files=train_data_files,valid_data_files=validate_data_files)
+    trainModel(textGen,opt,vocab_fields,train_data_files=train_data_files,valid_data_files=validate_data_files)
 
+def main(opt):
+    ArgumentParser.validate_train_opts(opt)
+    ArgumentParser.update_model_opts(opt)
+    ArgumentParser.validate_model_opts(opt)
+
+
+    runTrain(opt)
+    #runPrediction(opt)
+
+def _get_parser():
+    parser = ArgumentParser(description='build_transformer_model.py')
+
+    opts.config_opts(parser)
+    opts.model_opts(parser)
+    opts.train_opts(parser)
+    return parser
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
 
-    ## Required parameters
-    parser.add_argument("--data_dir",
-                        default=programmingalpha.DataPath+"openNMT/",
-                        type=str,
-                        help="The input data dir.")
+    parser = _get_parser()
 
-
-    parser.add_argument("--save_path",
-                        default=programmingalpha.ModelPath+"knowledgeComprehension/model",
-                        type=str,help="path dir to save the model")
-
-    ## Other parameters
-
-
-    parser.add_argument("--train_batch_size",
-                        default=4,
-                        type=int,
-                        help="Total batch size for training.")
-    parser.add_argument('--gradient_accumulation_steps',
-                        type=int,
-                        default=10,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
-
-    parser.add_argument("--eval_batch_size",
-                        default=4,
-                        type=int,
-                        help="Total batch size for eval.")
-    parser.add_argument("--eval_steps",
-                        default=500,type=int)
-    parser.add_argument("--save_steps",
-                        default=500,type=int)
-    parser.add_argument("--keep_checkpoints",
-                        default=50,type=int)
-    parser.add_argument("--learning_rate",
-                        default=5e-5,
-                        type=float,
-                        help="The initial learning rate for Adam.")
-    parser.add_argument("--num_train_steps",
-                        default=100000,
-                        type=float,
-                        help="Total number of training epochs to perform.")
-    parser.add_argument("--warmup_proportion",
-                        default=0.1,
-                        type=float,
-                        help="Proportion of training to perform linear learning rate warmup for. "
-                             "E.g., 0.1 = 10%% of training.")
-
-    parser.add_argument("--n_gpu",
-                        type=int,
-                        default=1,
-                        help="how many gpus to use")
-    parser.add_argument("--gpu_rank",
-                        type=int,
-                        default=0,
-                        help="which gpu to use")
-    parser.add_argument('--seed',
-                        type=int,
-                        default=42,
-                        help="random seed for initialization")
-
-
-
-    args = parser.parse_args()
-    args.fp16=False
-    logger.info("args:{}".format(args))
-
-    runTrain()
-    #runPrediction()
+    opt = parser.parse_args()
+    print(opt)
+    main(opt)

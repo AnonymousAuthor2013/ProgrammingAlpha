@@ -149,12 +149,79 @@ def test4():
 
 def testBertService():
     from bert_serving import client
-    my_client=client.BertClient(ip='192.168.5.183',port=5555)
+    my_client=client.BertClient(ip='ring-gpu-3',port=5555)
     encs=my_client.encode(["what is jetty.class?", "it is java class"])
     print(np.shape(encs))
     print(encs)
+
+def testSummarize():
+    txt='''
+        "As complexity rises , precise statements lose meaning and meaningful statements lose precision . ( Albert Einstein ) .", 
+        "Fuzzy logic deals with reasoning that is approximate rather than fixed and exact . This may make the reasoning more meaningful for a human :", 
+        "", 
+        "", 
+        "I 've written a short introduction to fuzzy logic that goes into a bit more details but should be very accessible .", 
+        "Fuzzy logic seems to have multiple of applications historically in Automotive Engineering .", 
+        "I found an interesting article on the subject from 1997 . This excerpt provides an interesting rationale :", 
+        "Here are some papers and patents for automatic transmission control in motor vehicles . One of them is fairly recent :", 
+        "Automatic Transmission Shift Schedule Control Using Fuzzy Logic SOURCE : Society of Automotive Engineers , 1993", 
+        "Fuzzy Logic in Automatic Transmission Control SOURCE : International Journal of Vehicle Mechanics and Mobility , 2007", 
+        "Fuzzy control system for automatic transmission | Patent | 1987", 
+        "Transmission control with a fuzzy logic controller | Patent | 1992", 
+        "", 
+        "Likewise with fuzzy logic anti-lock breaking systems ( ABS ) :", 
+        "Antilock-Braking System and Vehicle Speed Estimation using Fuzzy Logic SOURCE : FuzzyTECH , 1996", 
+        "Fuzzy Logic Anti-Lock Break System SOURCE : International Journal of Scientific & Engineering Research , 2012", 
+        "Fuzzy controller for anti-skid brake systems | Patent | 1993", 
+        "", 
+        "This method seems to have been extended to aviation :", 
+        "A Fuzzy Logic Control Synthesis for an Airplane Antilock-Breaking System SOURCE : Proceedings of the Romanian Academy , 2004", 
+        "Landing gear method and apparatus for braking and maneuvering | Patent | 2003", 
+        ""
+    '''
+    texts=[]
+    for p in txt.split("\n"):
+        texts.append("<p>"+p+"</p>")
+    txt=" ".join(texts)
+    from sumy.parsers.html import HtmlParser
+    from sumy.parsers.plaintext import PlaintextParser
+    from sumy.nlp.tokenizers import Tokenizer
+    #from sumy.summarizers.lsa import LsaSummarizer as Summarizer
+    from sumy.nlp.stemmers import Stemmer
+    from sumy.utils import get_stop_words
+    #from sumy.summarizers.kl import KLSummarizer as Summarizer
+    from sumy.summarizers.lex_rank import LexRankSummarizer as Summarizer
+    from programmingalpha.Utility.TextPreprocessing import PreprocessPostContent
+    from textblob import TextBlob
+    LANGUAGE = "english"
+
+    pros=PreprocessPostContent()
+    #url = "https://github.com/miso-belica/sumy"
+    #parser = HtmlParser.from_url(url, Tokenizer(LANGUAGE))
+    # or for plain text files
+    texts=pros.getPlainTxt(txt)
+    #print(TextBlob(txt).sentences)
+    print(len(texts))
+    [print("#p=>",p) for p in texts]
+    SENTENCES_COUNT = len(texts)
+
+    document=[]
+    for i in range(len(texts)):
+        document.append(texts[i])
+        document.append("")
+    document="\n".join(document)
+    print(document)
+    parser = PlaintextParser.from_string(document, Tokenizer(LANGUAGE))
+    stemmer = Stemmer(LANGUAGE)
+
+    summarizer = Summarizer(stemmer)
+    summarizer.stop_words = get_stop_words(LANGUAGE)
+
+    for sentence in summarizer(parser.document, SENTENCES_COUNT):
+        print(sentence)
+
 if __name__ == '__main__':
     #test4()
-    testBertService()
-
+    #testBertService()
+    testSummarize()
     pass

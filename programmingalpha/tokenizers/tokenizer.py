@@ -125,6 +125,12 @@ class SpacyTokenizer(object):
 
         return tokens
 
+
+class SimpleTokenizer(object):
+    def tokenize(self,txt):
+        return txt.split()
+
+
 if __name__ == '__main__':
     tokenizer1=CoreNLPTokenizer()
     tokenizer2=SpacyTokenizer()

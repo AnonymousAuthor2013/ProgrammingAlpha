@@ -12,6 +12,8 @@ GPT2Path="/home/LAB/zhangzy/ShareModels/GPT2/"
 
 #global project path
 ConfigPath="/home/LAB/zhangzy/ProgrammingAlpha/ConfigData/"
+DataCases="/home/LAB/zhangzy/ProgrammingAlpha/dataCases/"
+
 DataPath="/home/LAB/zhangzy/ProjectData/"
 ModelPath="/home/LAB/zhangzy/ProjectModels/"
 
@@ -22,7 +24,6 @@ Glove6="/home/LAB/zhangzy/ShareModels/Embeddings/glove.6B/"
 GloveStack="/home/LAB/zhangzy/ShareModels/Embeddings/stackexchange/"
 Bert768="/home/LAB/zhangzy/ShareModels/Embeddings/bert/"
 openAI768="/home/LAB/zhangzy/ShareModels/Embeddings/openAI/"
-
 
 
 

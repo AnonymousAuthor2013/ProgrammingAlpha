@@ -18,6 +18,18 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
 
+class SimpleTokenizer(BertTokenizer):
+    never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]","[NUM]","[CODE]")
+    def tokenize(self,txt):
+        tokens=txt.split()
+        seq_tokens=[]
+        for tok in tokens:
+            if tok.upper() in self.never_split:
+                seq_tokens.append(tok.upper())
+            else:
+                seq_tokens.append(tok)
+
+        return seq_tokens
 
 def accuracy(out, labels):
     outputs = np.argmax(out, axis=1)
@@ -50,7 +62,7 @@ def loadModel(num_labels):
 def main():
 
     if not args.do_train and not args.do_eval:
-        args.do_train, args.do_eval=True,True
+        raise ValueError("train or eval? at least one need to be selected!")
 
 
     processors = {
@@ -60,23 +72,18 @@ def main():
     num_labels_task = {
         "semantic": 4,
     }
-    #args.server_ip,args.server_port= "192.168.5.183","22"
-    if args.server_ip and args.server_port:
-        # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
-        import ptvsd
-        print("Waiting for debugger attach")
-        ptvsd.enable_attach(address=(args.server_ip, args.server_port), redirect_output=True)
-        ptvsd.wait_for_attach()
+
 
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         n_gpu = torch.cuda.device_count()
     else:
-        torch.cuda.set_device(args.local_rank)
+        from torch.cuda import set_device
+        set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         n_gpu = 1
         # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.distributed.init_process_group(backend='nccl')
+        #torch.distributed.init_process_group(backend='nccl')
     logger.info("device: {} n_gpu: {}, distributed training: {}, 16-bits training: {}".format(
         device, n_gpu, bool(args.local_rank != -1), args.fp16))
 
@@ -112,7 +119,10 @@ def main():
     num_labels = num_labels_task[task_name]
     labelMap = RelationSearcher.label_map
 
-    tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
+    if args.tokenized:
+        tokenizer=SimpleTokenizer(args.vocab_file,do_lower_case=args.do_lower_case,never_split=SimpleTokenizer.never_split)
+    else:
+        tokenizer = BertTokenizer(args.vocab_file,do_lower_case=args.do_lower_case,never_split=SimpleTokenizer.never_split)
 
 
 
@@ -143,8 +153,10 @@ def main():
 
             model = DDP(model)
         elif n_gpu > 1:
-            model = torch.nn.DataParallel(model)
-
+            from torch import nn
+            model = nn.DataParallel(model,device_ids=device_ids)
+            #from torch.cuda import set_device
+            #set_device(args.gpu_ranks[0])
         # Prepare optimizer
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
@@ -247,6 +259,8 @@ def main():
         return eval_accuracy, eval_loss
 
     def _train_epoch(epoch_num):
+        saved_at_least_one=False
+
         logger.info("***** Running training *****")
         logger.info("  Num examples = %d", len(train_examples))
         logger.info("  Batch size = %d", args.train_batch_size)
@@ -305,19 +319,21 @@ def main():
                     if eval_acc>best_eval_acc:
                         saveModel(model)
                         best_eval_acc=eval_acc
-
+                        saved_at_least_one=True
                     logger.info("global step:{}, eval_accuracy:{}, eval_loss:{}, best eval_acc:{}".format(
                         global_step,eval_acc,eval_loss,best_eval_acc)
                     )
 
+        if saved_at_least_one==False:
+            saveModel(model)
 
     if args.do_train:
         _train_epoch(int(args.num_train_epochs))
-    elif args.do_eval:
+    if args.do_eval:
         model=loadModel(num_labels)
         model.to(device)
-        _eval_epoch(model)
-
+        eval_acc,eval_loss=_eval_epoch(model)
+        logger.info("eval acc and loss is {}, {}".format(eval_acc,eval_loss))
 
 if __name__ == "__main__":
     dataSource=""
@@ -326,21 +342,24 @@ if __name__ == "__main__":
 
     ## Required parameters
     parser.add_argument("--model_name",
-                        default="BertBaseInference"+ ("" if not dataSource or dataSource=="" else "-"+dataSource),
+                        required=True,
                         type=str,
                         #required=True,
                         help="The name of the model.")
     parser.add_argument("--data_dir",
-                        default=programmingalpha.DataPath+"inference/",
+                        required=True,
                         type=str,
-                        #required=True,
                         help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
 
+    parser.add_argument("--vocab_file",default=True,
+                        type=str,
+                        #required=True,
+                        help="The name of the model.")
     parser.add_argument("--overwrite",
                         action="store_true",
                         help="overwrite saved model folder")
 
-    parser.add_argument("--bert_model", default=programmingalpha.BertBasePath, type=str,
+    parser.add_argument("--bert_model", required=True, type=str,
                         #required=True,
                         help="Bert pre-trained model selected in the list: bert-base-uncased, "
                         "bert-large-uncased, bert-base-cased, bert-large-cased, bert-base-multilingual-uncased, "
@@ -351,12 +370,14 @@ if __name__ == "__main__":
                         #required=True,
                         help="The name of the task to train.")
     parser.add_argument("--output_dir",
-                        default=programmingalpha.ModelPath,
+                        required=True,
                         type=str,
                         #required=True,
                         help="The output directory where the model predictions and checkpoints will be written.")
 
     ## Other parameters
+    parser.add_argument("--tokenized",action="store_true",help="is text tokenized?")
+
     parser.add_argument("--cache_dir",
                         default=None,
                         type=str,
@@ -382,7 +403,7 @@ if __name__ == "__main__":
                         help="Total batch size for training.")
 
     parser.add_argument("--eval_step_size",
-                        default=1000,
+                        default=5000,
                         type=int,
                         help="eval model performance after several steps")
 
@@ -410,6 +431,7 @@ if __name__ == "__main__":
                         type=int,
                         default=-1,
                         help="local_rank for distributed training on gpus")
+
     parser.add_argument('--seed',
                         type=int,
                         default=42,
@@ -426,9 +448,8 @@ if __name__ == "__main__":
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
                              "0 (default value): dynamic loss scaling.\n"
                              "Positive power of 2: static loss scaling value.\n")
-    parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
-    parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
+
     args = parser.parse_args()
-    print(args.train_batch_size)
     print(args)
+    device_ids=(0,1,2)
     main()
