@@ -46,6 +46,12 @@ def load_test_model_one(opt, model_path=None):
         model.float()
     model.eval()
     model.generator.eval()
+
+    if opt.gpu!=-1:
+        model.to(torch.device("cuda"))
+        #from torch.nn import DataParallel
+        #model=DataParallel(model).module
+
     return fields, model, model_opt
 
 def load_test_model_ensemble(opt):

@@ -262,7 +262,7 @@ def main(opt):
     #runPrediction(opt)
 
 def _get_parser():
-    parser = ArgumentParser(description='build_transformer_model.py')
+    parser = ArgumentParser(description='build_copy_transformer.py')
 
     opts.config_opts(parser)
     opts.model_opts(parser)

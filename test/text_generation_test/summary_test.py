@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('--test_size', type=int, default=2000)
 
     parser.add_argument('--db', type=str, default="corpus")
-    parser.add_argument('--maxLen', type=int, default=300)
+    parser.add_argument('--maxLen', type=int, default=500)
 
     parser.add_argument('--workers', type=int, default=1)
 

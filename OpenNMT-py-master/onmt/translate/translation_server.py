@@ -16,8 +16,8 @@ import onmt.opts
 from onmt.utils.logging import init_logger
 from onmt.utils.misc import set_random_seed
 from onmt.utils.parse import ArgumentParser
-from onmt.translate.translator import build_translator
-#from programmingalpha.models.openNMT_utils.model_builder import build_translator
+#from onmt.translate.translator import build_translator
+from programmingalpha.models.openNMT_utils.model_builder import build_translator
 
 def critical(func):
     """Decorator for critical section (mutually exclusive code)"""

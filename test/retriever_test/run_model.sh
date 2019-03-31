@@ -11,7 +11,7 @@ python build_linkprediction_model.py \
     --train_batch_size 64 \
     --eval_batch_size 128 \
     --gradient_accumulation_steps 8\
-    --num_train_epochs 3 \
+    --num_train_epochs 20 \
     --eval_step_size 1000 \
     --do_lower_case \
     --max_seq_length 512 \

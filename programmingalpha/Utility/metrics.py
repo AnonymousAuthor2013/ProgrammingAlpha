@@ -2,7 +2,7 @@ from sumeval.metrics.rouge import RougeCalculator
 from sumeval.metrics.bleu import BLEUCalculator
 from functools import partial
 from programmingalpha.tokenizers.tokenizer import SimpleTokenizer
-
+from nltk.translate.bleu_score import corpus_bleu
 class LanguageMetrics(object):
     bleu = BLEUCalculator(tokenizer=SimpleTokenizer())
     rouge = RougeCalculator(stopwords=True, lang="en",tokenizer=SimpleTokenizer())
