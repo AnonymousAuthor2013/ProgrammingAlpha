@@ -1,10 +1,7 @@
-testdata/
-graphData/
 .idea/*
 *.pyc
 .ipynb_checkpoints/
 data/
-modelData/
 dist/
 build/
 pytorch-pretrained-BERT
@@ -15,3 +12,10 @@ Texygen
 *.log
 *.out
 dataCases
+.pytest_cache
+bert
+bert-as-service
+OpenNMT-tf
+seq2seq
+sumy
+TextBlob
