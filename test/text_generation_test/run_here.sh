@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export CUDA_VISIBLE_DEVICES=0
 python ./build_transformer_model.py \
                    -data /home/LAB/zhangzy/ProjectData/openNMT/knowledgeData \
                    -save_model /home/LAB/zhangzy/ProjectModels/knowledgeComprehension/model \

@@ -17,7 +17,9 @@ import os
 import codecs
 import six
 import numpy as np
-
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 # pylint: disable=no-member
 
 def load_data_numpy(input_dir, prefix):
@@ -26,7 +28,7 @@ def load_data_numpy(input_dir, prefix):
     dev_data = np.load(os.path.join(input_dir,\
         prefix + 'valid.npy'), encoding='latin1').tolist()
 
-    print('train/valid data size:{}/{} '.format(len(train_data),len(dev_data)))
+    logger.info('train/valid data size:{}/{} '.format(len(train_data),len(dev_data)))
     return train_data, dev_data
 
 def seq2seq_pad_concat_convert(xy_batch, eos_id=2, bos_id=1):

@@ -1,15 +1,12 @@
 #training parameters
-batch_size=4
-train_batch_size = 4
-test_batch_size = 4
-eval_batch_size=4
+batch_size=8
 
 train_steps=100000
 warmup_steps=6000
 init_lr=1e-5
 max_train_epoch = 100
 display_steps = 100
-eval_steps = 5000
+eval_steps = 500
 teacher_forcing_rate=0.
 max_seq_length=512
 
@@ -17,6 +14,7 @@ max_seq_length=512
 filename_prefix = "processed."
 input_dir = '/home/LAB/zhangzy/ProjectData/texarData/data/seq2seq/'
 vocab_file = input_dir + '/processed.vocab.pickle'
+pad_token_id, bos_token_id, eos_token_id, unk_token_id = 0, 1, 2, 100
 
 
 #text data config
@@ -46,7 +44,7 @@ train = {
 }
 
 val = {
-    'batch_size': test_batch_size,
+    'batch_size': batch_size,
     'shuffle': False,
     'allow_smaller_final_batch': True,
     'source_dataset': {
@@ -65,7 +63,7 @@ val = {
 }
 
 test = {
-    'batch_size': test_batch_size,
+    'batch_size': batch_size,
     'shuffle': False,
     'allow_smaller_final_batch': True,
     'source_dataset': {

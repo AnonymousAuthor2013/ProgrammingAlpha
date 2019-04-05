@@ -6,7 +6,7 @@ import pickle
 import argparse
 from io import open
 
-pad_token_id, bos_token_id, eos_token_id, unk_token_id = 0, 1, 2, 100
+from .config_data import unk_token_id
 
 def split_sentence(s):
 

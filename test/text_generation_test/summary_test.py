@@ -12,7 +12,7 @@ def init():
 
     never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]","[NUM]","[CODE]")
     tokenizer=BertTokenizer(programmingalpha.ModelPath+"knowledgeComprehension/vocab.txt",never_split=never_split)
-    textExtractor=InformationAbstrator(args.maxLen)
+    textExtractor=InformationAbstrator(maxLen)
     lan_metric=LanguageMetrics()
 
     filter_funcs={
@@ -43,7 +43,7 @@ def computeScore(doc):
     refs=" ".join(answer)
     summary=summaryFunc(context)
     summary=" ".join(summary)
-    summary=" ".join(summary.split()[:args.maxLen])
+    summary=" ".join(summary.split()[:maxLen])
 
 
     #print("sum=>",summary)
@@ -110,11 +110,9 @@ def summaryContext(data_samples):
     rouge_be=np.mean(list(rouge_be))
     bleu=np.mean(list(bleu))
 
-    metric_score={"rogue-1":rouge_1,"rougue-2":rouge_2,"rougue-l":rouge_l,"rouge-be":rouge_be,"bleu":bleu}
-
-    with open(programmingalpha.DataCases+"summaryEval-len%d-score-"%args.maxLen+args.extractor,"w") as f:
-        import json
-        f.write(json.dumps(metric_score)+"\n")
+    metric_score={"len":maxLen,"rogue-1":rouge_1,"rougue-2":rouge_2,"rougue-l":rouge_l,"rouge-be":rouge_be,"bleu":bleu}
+    print(metric_score)
+    return metric_score
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
@@ -122,7 +120,6 @@ if __name__ == '__main__':
     parser.add_argument('--test_size', type=int, default=2000)
 
     parser.add_argument('--db', type=str, default="corpus")
-    parser.add_argument('--maxLen', type=int, default=500)
 
     parser.add_argument('--workers', type=int, default=1)
 
@@ -134,11 +131,21 @@ if __name__ == '__main__':
 
     args=parser.parse_args()
 
-    methods=["pagerank"]#["lexrankS","klS","lsaS","textrankS","reductionS"]
+    methods=["lexrankS","klS","lsaS","textrankS","reductionS"]
     data_samples=fetchData()
     data_samples=list(data_samples)
 
+    all_scores=[]
+    maxLen=50
+
     for summethod in methods:
-        args.extractor=summethod
-        print("method ",args.extractor,"data size=",len(data_samples),"maxLen",args.maxLen)
-        summaryContext(data_samples)
+        for length in range(50,550,50):
+
+            args.extractor=summethod
+            print("method ",args.extractor,"data size=",len(data_samples),"maxLen",length)
+            maxLen=length
+            metric=summaryContext(data_samples)
+            all_scores.append(metric)
+    print("*"*100)
+    for ms in all_scores:
+        print(ms)

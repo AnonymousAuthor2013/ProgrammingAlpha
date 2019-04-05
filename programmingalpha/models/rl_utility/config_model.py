@@ -1,6 +1,7 @@
 """Configurations of Transformer model
 """
 import texar as tx
+from texar.utils import utils
 
 random_seed = 3719753
 beam_width = 20
@@ -42,6 +43,48 @@ decoder1 = {
     },
     'poswise_feedforward': tx.modules.default_transformer_poswise_net_hparams(
         output_dim=hidden_dim)
+}
+rnn_decoder1 = {
+    'rnn_cell': {
+        'kwargs': {
+            'num_units': hidden_dim
+        },
+    },
+    'attention': {
+        'kwargs': {
+            'num_units': hidden_dim,
+        },
+        'attention_layer_size': hidden_dim
+    }
+}
+rnn_decoder={
+        "attention": {
+            "type": "LuongAttention",
+            "kwargs": {
+                "num_units": hidden_dim,
+            },
+            "attention_layer_size": None,
+            "alignment_history": False,
+            "output_attention": True,
+        },
+        # The following hyperparameters are the same as with
+        # `BasicRNNDecoder`
+        "rnn_cell": {
+            'kwargs': {
+            'num_units': hidden_dim
+            },
+        },
+        "max_decoding_length_train": max_decoding_length,
+        "max_decoding_length_infer": max_decoding_length,
+        "helper_train": {
+            "type": "TrainingHelper",
+            "kwargs": {}
+        },
+        "helper_infer": {
+            "type": "SampleEmbeddingHelper",
+            "kwargs": {}
+        },
+        "name": "attention_rnn_decoder"
 }
 
 decoder = {
@@ -113,7 +156,7 @@ decoder = {
 
 loss_label_confidence = 0.9
 
-opt = {
+opt1 = {
     'optimizer': {
         'type': 'AdamOptimizer',
         'kwargs': {
@@ -124,6 +167,30 @@ opt = {
     }
 }
 
+opt={
+            "optimizer": {
+                "type": "AdamOptimizer",
+                "kwargs": {
+                'beta1': 0.9,
+                'beta2': 0.997,
+                'epsilon': 1e-9
+                }
+            },
+            "learning_rate_decay": {
+                "type": "",
+                "kwargs": {},
+                "min_learning_rate": 0.,
+                "start_decay_step": 0,
+                "end_decay_step": utils.MAX_SEQ_LENGTH
+            },
+            "gradient_clip": {
+                "type": "",
+                "kwargs": {}
+            },
+            "gradient_noise_scale": None,
+            "name": None
+}
+
 lr = {
     'learning_rate_schedule': 'constant.linear_warmup.rsqrt_decay.rsqrt_depth',
     'lr_constant': 2 * (hidden_dim ** -0.5),
@@ -131,7 +198,22 @@ lr = {
     'warmup_steps': 16000,
 }
 
-agent = {
+agent1 = {
     'discount_factor': 0.,
     'entropy_weight': .5
+}
+
+agent={
+    'discount_factor': 0.,#0.95,
+    'normalize_reward': False,
+    'entropy_weight': 0.5,#0.,
+    'loss': {
+        'average_across_batch': True,
+        'average_across_timesteps': False,
+        'sum_over_batch': False,
+        'sum_over_timesteps': True,
+        'time_major': False
+    },
+    'optimization': opt,
+    'name': 'pg_agent',
 }

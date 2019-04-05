@@ -25,8 +25,9 @@ def loadRefAndSum(sum_file,ref_file):
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
+    maxLen=200
     parser.add_argument("--reference_file",type=str,default=programmingalpha.DataPath+"seq2seq/valid-dst")
-    parser.add_argument("--summary_file",type=str,default=programmingalpha.DataPath+"predictions/predict.txt")
+    parser.add_argument("--summary_file",type=str,default=programmingalpha.DataPath+"predictions/predict-%d.txt"%maxLen)
     args=parser.parse_args()
     lan_metric=LanguageMetrics()
     scores=[]
@@ -45,6 +46,6 @@ if __name__ == '__main__':
     rouge_be=np.mean(list(rouge_be))
     bleu=np.mean(list(bleu))
 
-    metric_score={"rogue-1":rouge_1,"rougue-2":rouge_2,"rougue-l":rouge_l,"rouge-be":rouge_be,"bleu":bleu}
+    metric_score={"len":maxLen,"rogue-1":rouge_1,"rougue-2":rouge_2,"rougue-l":rouge_l,"rouge-be":rouge_be,"bleu":bleu}
 
     print(metric_score)
