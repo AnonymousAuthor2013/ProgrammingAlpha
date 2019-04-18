@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES=''
-maxLen=250
-python /home/LAB/zhangzy/ProgrammingAlpha/OpenNMT-py-master/translate.py \
-                    -batch_size 8 \
+export CUDA_VISIBLE_DEVICES='2'
+maxLen=200
+python /home/LAB/zhangzy/ProgrammingAlpha/OpenNMT-py/translate.py \
+                    -batch_size 4 \
                     -beam_size 30 \
                     -model /home/LAB/zhangzy/ProjectModels/knowledgeComprehension/translate_model.pt \
-                    -src /home/LAB/zhangzy/ProjectData/seq2seq/valid-src \
-                    -tgt /home/LAB/zhangzy/ProjectData/seq2seq/valid-dst \
-                    -output /home/LAB/zhangzy/ProjectData/predictions/"predict-${maxLen}.txt" \
+                    -src /home/LAB/zhangzy/ProjectData/seq2seq/unsolved-random \
+                    -output /home/LAB/zhangzy/ProjectData/predictions/"predict-unsolved-${maxLen}.txt" \
                     -min_length 35 \
                     -max_length ${maxLen} \
                     -verbose \
@@ -23,5 +22,8 @@ python /home/LAB/zhangzy/ProgrammingAlpha/OpenNMT-py-master/translate.py \
                     -report_rouge \
                     -share_vocab \
                     -dynamic_dict \
-                    -gpu -1 \
+                    -gpu 0 \
                     -verbose \
+                    #-tgt /home/LAB/zhangzy/ProjectData/seq2seq/valid-dst \
+
+

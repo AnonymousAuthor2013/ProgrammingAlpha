@@ -9,7 +9,6 @@ from onmt.trainer import build_trainer
 from onmt.models import build_model_saver
 from onmt.utils.logging import init_logger, logger
 from onmt.utils.parse import ArgumentParser
-from onmt.model_builder import build_model
 from onmt.utils.optimizers import Optimizer
 from programmingalpha.models.TextGenModels import TextGeneratorModel
 from pytorch_pretrained_bert import optimization as bertOptimizer
@@ -20,32 +19,28 @@ import onmt
 
 
 #my model
-def buildModelForTrain(opts,device_id):
-    vocab_data,model_save_path=opts.data+".vocab.pt",opts.save_model
-
-    TextGeneratorModel.layer_num=opts.layers
-    TextGeneratorModel.drop_out=opts.dropout
+def buildModelForTrain(model_opt, opt, fields, checkpoint=None):
+    TextGeneratorModel.layer_num=model_opt.layers
+    TextGeneratorModel.drop_out=model_opt.dropout
+    TextGeneratorModel.model_opt=model_opt
+    TextGeneratorModel.opt=opt
+    TextGeneratorModel.fields=fields
     textGen=TextGeneratorModel()
 
-    model,vocab_fields=textGen.transformer,textGen.vocab_fields
+    if checkpoint is not None:
+        textGen.loadModel(checkpoint=checkpoint)
+    model=textGen.transformer
 
+    logger.info(model)
+    return model
+
+
+def buildOptimizer(model,opts):
+    #configure optimizer
     random.seed(1237)
     np.random.seed(7453)
     torch.manual_seed(13171)
 
-
-    tgt_text_field = vocab_fields['tgt'].base_field
-    tgt_vocab = tgt_text_field.vocab
-
-    #define loss
-    loss=onmt.modules.CopyGeneratorLossCompute(
-        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=len(tgt_vocab), force_copy=False,
-                    unk_index=tgt_vocab.stoi[tgt_text_field.unk_token],ignore_index=tgt_vocab.stoi[tgt_text_field.pad_token], eps=1e-20),
-        generator=(model.module if hasattr(model, 'module') else model).generator,
-        tgt_vocab=tgt_vocab, normalize_by_length=True
-    )
-
-    #configure optimizer
     lr = opts.learning_rate
 
     param_optimizer = list(model.named_parameters())
@@ -64,47 +59,64 @@ def buildModelForTrain(opts,device_id):
     optim = onmt.utils.optimizers.Optimizer(
         bert_optimizer, learning_rate=lr, max_grad_norm=2)
 
+    return optim
 
-    model_saver=onmt.models.ModelSaver(base_path=textGen.modelPath,
-                                 model=model.module if hasattr(model, 'module') else model,
-                                 model_opt=opts,
-                                 fields=textGen.vocab_fields,
-                                 optim=optim,keep_checkpoint=opts.keep_checkpoint)
+def build_loss_compute_test(model, tgt_field, opt, train=True):
 
-    trunc_size = opts.truncated_decoder  # Badly named...
-    shard_size = opts.max_generator_batches if opts.model_dtype == 'fp32' else 0
-    norm_method = opts.normalization
-    grad_accum_count = opts.accum_count
-    n_gpu = opts.world_size
-    average_decay = opts.average_decay
-    average_every = opts.average_every
-    if device_id >= 0:
-        gpu_rank = opts.gpu_ranks[device_id]
+    """
+    Returns a LossCompute subclass which wraps around an nn.Module subclass
+    (such as nn.NLLLoss) which defines the loss criterion. The LossCompute
+    object allows this loss to be computed in shards and passes the relevant
+    data to a Statistics object which handles training/validation logging.
+    Currently, the NMTLossCompute class handles all loss computation except
+    for when using a copy mechanism.
+    """
+
+    from onmt.utils.loss import LabelSmoothingLoss,SparsemaxLoss,LogSparsemax,NMTLossCompute
+    from torch import nn
+    #loss
+    tgt_vocab=tgt_field.vocab
+    loss=onmt.modules.CopyGeneratorLossCompute(
+        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=len(tgt_vocab), force_copy=False,
+                    unk_index=tgt_vocab.stoi[tgt_field.unk_token],ignore_index=tgt_vocab.stoi[tgt_field.pad_token], eps=1e-20),
+        generator=(model.module if hasattr(model, 'module') else model).generator,
+        tgt_vocab=tgt_vocab, normalize_by_length=True
+    )
+
+    #build loss
+    device = torch.device("cuda" if onmt.utils.misc.use_gpu(opt) else "cpu")
+
+    padding_idx = tgt_field.vocab.stoi[tgt_field.pad_token]
+    unk_idx = tgt_field.vocab.stoi[tgt_field.unk_token]
+    if opt.copy_attn:
+        criterion = onmt.modules.CopyGeneratorLoss(
+            len(tgt_field.vocab), opt.copy_attn_force,
+            unk_index=unk_idx, ignore_index=padding_idx
+        )
+    elif opt.label_smoothing > 0 and train:
+        criterion = LabelSmoothingLoss(
+            opt.label_smoothing, len(tgt_field.vocab), ignore_index=padding_idx
+        )
+    elif isinstance(model.generator[-1], LogSparsemax):
+        criterion = SparsemaxLoss(ignore_index=padding_idx, reduction='sum')
     else:
-        gpu_rank = 0
-        n_gpu = 0
-    gpu_verbose_level = opts.gpu_verbose_level
+        criterion = nn.NLLLoss(ignore_index=padding_idx, reduction='sum')
 
-    report_manager = onmt.utils.build_report_manager(opts)
-    if torch.cuda.is_available() and len(opts.gpu_ranks)>0:
-        model.to(torch.device("cuda"))
+    # if the loss function operates on vectors of raw logits instead of
+    # probabilities, only the first part of the generator needs to be
+    # passed to the NMTLossCompute. At the moment, the only supported
+    # loss function of this kind is the sparsemax loss.
+    use_raw_logits = isinstance(criterion, SparsemaxLoss)
+    loss_gen = model.generator[0] if use_raw_logits else model.generator
+    if opt.copy_attn:
+        compute = onmt.modules.CopyGeneratorLossCompute(
+            criterion, loss_gen, tgt_field.vocab, opt.copy_loss_by_seqlength
+        )
     else:
-        model.to(torch.device("cpu"))
+        compute = NMTLossCompute(criterion, loss_gen)
+    compute.to(device)
 
-    trainer = onmt.Trainer(model, loss, loss, optim, trunc_size,
-                           shard_size, norm_method,
-                           grad_accum_count, n_gpu, gpu_rank,
-                           gpu_verbose_level, report_manager,
-                           model_saver=model_saver if gpu_rank == 0 else None,
-                           average_decay=average_decay,
-                           average_every=average_every,
-                           model_dtype=opts.model_dtype)
-
-    # Build NMTModel(= encoder + decoder).
-    if opts.model_dtype == 'fp16':
-        model.half()
-
-    return model, optim,model_saver,trainer
+    return compute
 
 
 def _check_save_model_path(opt):
@@ -172,25 +184,25 @@ def main(opt, device_id):
                 logger.info(' * %s vocab size = %d' % (sn, len(sf.vocab)))
 
     # Build model.
-    if checkpoint:
-        model = build_model(model_opt, opt, fields, checkpoint)
-        n_params, enc, dec = _tally_parameters(model)
-        logger.info('encoder: %d' % enc)
-        logger.info('decoder: %d' % dec)
-        logger.info('* number of parameters: %d' % n_params)
-        _check_save_model_path(opt)
+    model = buildModelForTrain(model_opt, opt, fields, checkpoint)#build_model(model_opt, opt, fields, checkpoint)
 
-        # Build optimizer.
-        optim = Optimizer.from_opt(model, opt, checkpoint=checkpoint)
+    n_params, enc, dec = _tally_parameters(model)
+    logger.info('encoder: %d' % enc)
+    logger.info('decoder: %d' % dec)
+    logger.info('* number of parameters: %d' % n_params)
+    _check_save_model_path(opt)
 
-        # Build model saver
-        model_saver = build_model_saver(model_opt, opt, model, fields, optim)
-
-        trainer = build_trainer(
-            opt, device_id, model, fields, optim, model_saver=model_saver)
+    # Build optimizer.
+    if checkpoint is None:
+        optim = buildOptimizer(model,opt)
     else:
-        model, optim,saver,trainer=buildModelForTrain(opt,device_id)
-        logger.info(model)
+        optim=Optimizer.from_opt(model, opt, checkpoint=checkpoint)
+
+    # Build model saver
+    model_saver = build_model_saver(model_opt, opt, model, fields, optim)
+
+    trainer = build_trainer(
+        opt, device_id, model, fields, optim, model_saver=model_saver)
 
     train_iter = build_dataset_iter("train", fields, opt)
     valid_iter = build_dataset_iter(
@@ -200,13 +212,10 @@ def main(opt, device_id):
         logger.info('Starting training on GPU: %s' % opt.gpu_ranks)
     else:
         logger.info('Starting training on CPU, could be very slow')
-
     train_steps = opt.train_steps
-
     if opt.single_pass and train_steps > 0:
         logger.warning("Option single_pass is enabled, ignoring train_steps.")
         train_steps = 0
-
     trainer.train(
         train_iter,
         train_steps,

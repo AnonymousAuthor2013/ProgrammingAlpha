@@ -25,7 +25,7 @@ def loadRefAndSum(sum_file,ref_file):
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser()
-    maxLen=200
+    maxLen=50
     parser.add_argument("--reference_file",type=str,default=programmingalpha.DataPath+"seq2seq/valid-dst")
     parser.add_argument("--summary_file",type=str,default=programmingalpha.DataPath+"predictions/predict-%d.txt"%maxLen)
     args=parser.parse_args()

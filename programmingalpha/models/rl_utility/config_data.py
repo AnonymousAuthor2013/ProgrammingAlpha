@@ -1,5 +1,5 @@
 #training parameters
-batch_size=8
+batch_size=1
 
 train_steps=100000
 warmup_steps=6000

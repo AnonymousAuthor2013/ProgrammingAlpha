@@ -47,31 +47,18 @@ def trainModel(textGen:TextGeneratorModel,opt,vocab_fields,train_data_files=None
     model.to(torch.device(device))
 
     #fields data
-    src_text_field = vocab_fields["src"].base_field
-    src_vocab = src_text_field.vocab
-    src_padding = src_vocab.stoi[src_text_field.pad_token]
 
     tgt_text_field = vocab_fields['tgt'].base_field
     tgt_vocab = tgt_text_field.vocab
     tgt_padding = tgt_vocab.stoi[tgt_text_field.pad_token]
-
+    unk_id=tgt_vocab.stoi[tgt_text_field.unk_token]
     #define loss
     loss=onmt.modules.CopyGeneratorLossCompute(
-        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=textGen.tgt_vocab_size, force_copy=False,
-                    unk_index=0,ignore_index=1, eps=1e-20),
+        criterion=onmt.modules.CopyGeneratorLoss(vocab_size=len(tgt_vocab), force_copy=False,
+                    unk_index=unk_id,ignore_index=tgt_padding, eps=1e-20),
         generator=(model.module if hasattr(model, 'module') else model).generator,
         tgt_vocab=tgt_vocab, normalize_by_length=True
     )
-
-
-    '''
-    model.generator=nn.Sequential(
-            nn.Linear(768, len(tgt_vocab)),
-            nn.LogSoftmax(dim=-1))
-    loss = onmt.utils.loss.NMTLossCompute(
-        criterion=nn.NLLLoss(ignore_index=tgt_vocab.stoi[tgt_text_field.pad_token], reduction="sum"),
-        generator=model.generator)
-    '''
 
     #configure optimizer
     lr = opt.learning_rate
@@ -92,8 +79,6 @@ def trainModel(textGen:TextGeneratorModel,opt,vocab_fields,train_data_files=None
         bert_optimizer, learning_rate=lr, max_grad_norm=2)
 
     logger.info(model)
-
-
 
     train_iter = onmt.inputters.inputter.DatasetLazyIter(dataset_paths=train_data_files,
                                                          fields=vocab_fields,
@@ -136,6 +121,32 @@ def trainModel(textGen:TextGeneratorModel,opt,vocab_fields,train_data_files=None
                   valid_steps=opt.valid_steps,
                   save_checkpoint_steps=opt.save_checkpoint_steps)
 
+def runTrain(opt):
+    import os
+    data_dir=opt.data
+    data_dir=data_dir[:1+data_dir.rfind("/")]
+    train_data_files=[]
+    validate_data_files=[]
+
+    for filename in os.listdir(data_dir):
+        if "train" in filename:
+            train_data_files.append(os.path.join(data_dir,filename))
+        elif "valid" in filename:
+            validate_data_files.append(os.path.join(data_dir,filename))
+
+    logger.info("train files:{}".format(train_data_files))
+    logger.info("validate files:{}".format(validate_data_files))
+
+    vocab_data=opt.data+".vocab.pt"
+    logger.info("loading vocab from {}".format(vocab_data))
+    vocab_fields=torch.load(vocab_data)
+
+    TextGeneratorModel.model_opt=opt
+    TextGeneratorModel.opt=opt
+    TextGeneratorModel.fields=vocab_fields
+    textGen=TextGeneratorModel()
+
+    trainModel(textGen,opt,vocab_fields,train_data_files=train_data_files,valid_data_files=validate_data_files)
 
 def generateText(textGen:TextGeneratorModel,test_data_file,opt):
     from onmt import translate
@@ -227,30 +238,6 @@ def runPrediction(opt):
 
     #generateText(textGen,validate_data_files[0],opt)
 
-def runTrain(opt):
-    import os
-    data_dir=opt.data
-    data_dir=data_dir[:1+data_dir.rfind("/")]
-    train_data_files=[]
-    validate_data_files=[]
-
-    for filename in os.listdir(data_dir):
-        if "train" in filename:
-            train_data_files.append(os.path.join(data_dir,filename))
-        elif "valid" in filename:
-            validate_data_files.append(os.path.join(data_dir,filename))
-
-    logger.info("train files:{}".format(train_data_files))
-    logger.info("validate files:{}".format(validate_data_files))
-
-    vocab_data=opt.data+".vocab.pt"
-    logger.info("loading vocab from {}".format(vocab_data))
-    vocab_fields=torch.load(vocab_data)
-
-    TextGeneratorModel.layer_num=opt.layers
-    textGen=TextGeneratorModel()
-
-    trainModel(textGen,opt,vocab_fields,train_data_files=train_data_files,valid_data_files=validate_data_files)
 
 def main(opt):
     ArgumentParser.validate_train_opts(opt)

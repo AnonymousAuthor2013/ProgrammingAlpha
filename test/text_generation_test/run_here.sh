@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES=0
-python ./build_transformer_model.py \
+export CUDA_VISIBLE_DEVICES='2'
+layer_num=2
+python ./build_copy_transformer.py \
                    -data /home/LAB/zhangzy/ProjectData/openNMT/knowledgeData \
-                   -save_model /home/LAB/zhangzy/ProjectModels/knowledgeComprehension/model \
-                   -layers 4 \
+                   -save_model /home/LAB/zhangzy/ProjectModels/knowledgeComprehension/model-L$layer_num \
+                   -layers $layer_num \
                    -rnn_size 768 \
                    -word_vec_size 768 \
                    -max_grad_norm 0 \
@@ -18,7 +19,7 @@ python ./build_transformer_model.py \
                    -label_smoothing 0.1 \
                    -adam_beta2 0.998 \
                    -batch_size 6 \
-                   -batch_type tokens \
+                   -batch_type sents \
                    -normalization tokens \
                    -max_generator_batches 2 \
                    -train_steps 100000 \

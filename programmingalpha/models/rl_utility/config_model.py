@@ -90,7 +90,7 @@ rnn_decoder={
 decoder = {
         # Same as in TransformerEncoder
         "scale_embeds": True,
-        "num_blocks": 4,
+        "num_blocks": 1,
         "dim": hidden_dim,
         'position_embedder_type': 'sinusoids',
         'position_size': max_seq_length,

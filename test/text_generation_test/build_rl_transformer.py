@@ -342,7 +342,7 @@ def train_rl():
         )
 
         # For training
-        start_tokens = tf.fill([tx.utils.get_batch_size(encoder_input)],
+        start_tokens = tf.fill([tx.utils.get_batch_size(enc_x)],
                                bos_token_id)
 
         '''decoder_emb_input=__computeEmbedding(embedder,dec_x)
@@ -478,8 +478,6 @@ def train_rl():
         for i in range(0,len(eval_data),bsize):
             in_arrays=data_utils.seq2seq_pad_concat_convert(eval_data[i:i+bsize])
 
-
-
             feed_dict = {
                 encoder_input: in_arrays[0],
                 #decoder_input: in_arrays[1],
@@ -573,7 +571,6 @@ def train_rl():
 
         return step
 
-
     # Run the graph
     sess_config = tf.ConfigProto(allow_soft_placement=True)
     sess_config.gpu_options.per_process_gpu_memory_fraction = 0.9
@@ -582,8 +579,7 @@ def train_rl():
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         sess.run(tf.tables_initializer())
-        BertRLTransformer.initBert(sess)
-
+        BertRLTransformer.initBert(sess,2)
 
         smry_writer = tf.summary.FileWriter(FLAGS.model_dir, graph=sess.graph)
 
@@ -598,7 +594,7 @@ def train_rl():
 
 
 #parallel
-def average_gradients(tower_grads):
+def average_gradients(tower_grads,verbose=0):
     average_grads_and_vars = []
     n_group=len(tower_grads)
     var_num=len(tower_grads[0])
@@ -623,7 +619,9 @@ def average_gradients(tower_grads):
 
             grad_var=(grad_sum,var)
 
-        #logger.info(grad_var)
+        if verbose>0:
+            logger.info(grad_var)
+
         average_grads_and_vars.append(grad_var)
 
     logger.info("n_group:{}, var_num:{}/{}".format(n_group,len(average_grads_and_vars),var_num))
@@ -730,7 +728,7 @@ def train_transformer_parallel():
 
                     tower_grads.append(list(zip(grads,tvars)))
 
-    grads=average_gradients(tower_grads)
+    grads=average_gradients(tower_grads, verbose=2)
 
     mle_loss=tf.reduce_mean(tf.stack(mle_loss,axis=0),axis=0)
     predictions=tf.concat(predictions,axis=0,name="predictions")
@@ -788,7 +786,6 @@ def train_transformer_parallel():
 
     # Uses the best sample by beam search
 
-    saver = tf.train.Saver(max_to_keep=5)
     bsize=config_data.batch_size*n_gpu
 
     def _eval(epoch, step, sess:tf.Session):
@@ -873,25 +870,13 @@ def train_transformer_parallel():
 
         smry_writer = tf.summary.FileWriter(FLAGS.model_dir, graph=sess.graph)
 
-        if FLAGS.run_mode == 'train_and_evaluate':
-            logger.info('Begin running with train_and_evaluate mode')
+        logger.info('Begin running with train_and_evaluate mode')
 
-            if tf.train.latest_checkpoint(FLAGS.model_dir) is not None:
-                logger.info('Restore latest checkpoint in %s' % FLAGS.model_dir)
-                saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir))
+        step = 0
+        for epoch in range(config_data.max_train_epoch):
+            step = _train_epoch(sess, epoch, step, smry_writer)
 
-            step = 0
-            for epoch in range(config_data.max_train_epoch):
-                step = _train_epoch(sess, epoch, step, smry_writer)
 
-        elif FLAGS.run_mode == 'test':
-            logger.info('Begin running with test mode')
-
-            logger.info('Restore latest checkpoint in %s' % FLAGS.model_dir)
-            saver.restore(sess, tf.train.latest_checkpoint(FLAGS.model_dir))
-
-        else:
-            raise ValueError('Unknown mode: {}'.format(FLAGS.run_mode))
 
 
 def train_rl_parallel():
@@ -907,7 +892,11 @@ def train_rl_parallel():
 
     global_step = tf.Variable(0, dtype=tf.int64, trainable=False)
 
-    def transformer_rl_model(enc_x,dec_x,enc_len,dec_len):
+    qvalue_inputs = tf.placeholder(dtype=tf.float32,shape=[None, None],name='qvalue_inputs')
+
+    agent_hparams=tx.HParams(config_model.agent,None)
+
+    def transformer_rl_model(enc_x,dec_x,enc_len,dec_len,q_val,agent_hparams):
         encoder_output, embedder=BertRLTransformer.bertTransformerEncoder(True,enc_x)
         tgt_embedding=embedder
         def __computeEmbedding(embedding_table,input_ids):
@@ -954,6 +943,7 @@ def train_rl_parallel():
                 helper=helper,
                 mode=tf.estimator.ModeKeys.TRAIN)
         '''
+        from tensorflow.contrib import seq2seq
 
         outputs, sequence_length = decoder(
             memory=encoder_output,
@@ -966,28 +956,16 @@ def train_rl_parallel():
             mode=tf.estimator.ModeKeys.TRAIN
         )
 
-
-        from programmingalpha.models.rl_utility.seq_agent import SeqPGAgent
-        agent = SeqPGAgent(
-            samples=outputs.sample_id,
-            logits=outputs.logits,
-            sequence_length=sequence_length,
-            hparams=BertRLTransformer.config_model.agent)
-
-        '''from texar.losses.pg_losses import pg_loss_with_logits
+        from texar.losses.pg_losses import pg_loss_with_logits
         from texar.losses.entropy import sequence_entropy_with_logits
 
-        agent_hparams=tx.HParams(config_model.agent,None)
-        _qvalue_inputs = tf.placeholder(
-            dtype=tf.float32,
-            shape=[None, None],
-            name='qvalue_inputs')
+
         loss_hparams = agent_hparams.loss
         pg_loss = pg_loss_with_logits(
             actions=outputs.sample_id,
             logits=outputs.logits,
-            sequence_length=sequence_lengths,
-            advantages=_qvalue_inputs,
+            sequence_length=sequence_length,
+            advantages=q_val,
             batched=True,
             average_across_batch=loss_hparams.average_across_batch,
             average_across_timesteps=loss_hparams.average_across_timesteps,
@@ -998,18 +976,17 @@ def train_rl_parallel():
         if agent_hparams.entropy_weight > 0:
             entropy=sequence_entropy_with_logits(
                 outputs.logits,
-                sequence_length=sequence_lengths,
+                sequence_length=sequence_length,
                 average_across_batch=loss_hparams.average_across_batch,
                 average_across_timesteps=loss_hparams.average_across_timesteps,
                 sum_over_batch=loss_hparams.sum_over_batch,
                 sum_over_timesteps=loss_hparams.sum_over_timesteps,
                 time_major=loss_hparams.time_major)
 
-            pg_loss -= agent_hparams.entropy_weight * entropy'''
+            pg_loss -= agent_hparams.entropy_weight * entropy
 
-        pg_loss=agent.pg_loss#tf.reduce_mean(outputs.logits)
 
-        return pg_loss, outputs
+        return pg_loss, outputs, sequence_length
 
     #train steps with data parallel computing graph
     tower_grads=[]
@@ -1017,6 +994,7 @@ def train_rl_parallel():
     batch_size=config_data.batch_size
     agent_loss=[]
     predictions=[]
+    dec_out_seq_len=[]
     with tf.variable_scope(tf.get_variable_scope(),reuse=tf.AUTO_REUSE):
         for i in range(n_gpu):
             with tf.device("%s:%d"%(device_name,i)):
@@ -1025,11 +1003,12 @@ def train_rl_parallel():
                     enc_len=encoder_input_length[i*batch_size:(i+1)*batch_size]
                     dec_y=decoder_input[i*batch_size:(i+1)*batch_size]
                     dec_len=decoder_input_length[i*batch_size:(i+1)*batch_size]
-
-                    loss, dec_out=transformer_rl_model(enc_x=enc_x,dec_x=dec_y,enc_len=enc_len,dec_len=dec_len)
+                    q_val=qvalue_inputs[i*batch_size:(i+1)*batch_size]
+                    loss, dec_out, seq_len=transformer_rl_model(enc_x=enc_x,dec_x=dec_y,enc_len=enc_len,dec_len=dec_len,q_val=q_val,agent_hparams=agent_hparams)
 
                     agent_loss.append(loss)
                     predictions.append(dec_out.sample_id)
+                    dec_out_seq_len.append(seq_len)
                     tf.get_variable_scope().reuse_variables()
 
                     #grads=optimizer.compute_gradients(loss=loss,var_list=tf.trainable_variables())
@@ -1040,10 +1019,10 @@ def train_rl_parallel():
 
                     tower_grads.append(list(zip(grads,tvars)))
 
-    grads=average_gradients(tower_grads)
+    grads=average_gradients(tower_grads,verbose=2)
     agent_loss=tf.reduce_mean(tf.stack(agent_loss,axis=0),axis=0)
     predictions=tf.concat(predictions,axis=0,name="predictions")
-
+    dec_out_seq_len=tf.concat(dec_out_seq_len,axis=0,name="decoder_output_length")
     #train method
     global_step = tf.train.get_or_create_global_step()
     learning_rate = tf.constant(value=config_data.init_lr, shape=[], dtype=tf.float32, name="lr")
@@ -1093,17 +1072,38 @@ def train_rl_parallel():
     logger.info("parallel gpu computing graph for reinforcement learning defined!")
 
 
+    #'''
+    optimizer = optimization.AdamWeightDecayOptimizer(
+      learning_rate=learning_rate,
+      weight_decay_rate=0.01,
+      beta_1=0.9,
+      beta_2=0.999,
+      epsilon=1e-6,
+      exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
+
+    train_op=optimizer.apply_gradients(grads,global_step=global_step)
+    new_global_step = global_step + 1
+    train_op = tf.group(train_op, [global_step.assign(new_global_step)])
+
+    tf.summary.scalar('lr', learning_rate)
+    tf.summary.scalar('agent_loss', agent_loss)
+    summary_merged = tf.summary.merge_all()
+
+    logger.info("parallel gpu computing graph for reinforcement learning defined!")
+
+    from texar.losses.rewards import discount_reward
+
     def _eval(epoch, step, sess:tf.Session):
         logger.info("evaluating")
         hypotheses,references=[],[]
-        
+
         bsize=config_data.batch_size
         for i in range(0,len(eval_data),bsize):
             in_arrays=data_utils.seq2seq_pad_concat_convert(eval_data[i:i+bsize])
-            
+
             feed_dict = {
                 encoder_input: in_arrays[0],
-                decoder_input: in_arrays[1],
+                #decoder_input: in_arrays[1],
                 tx.global_mode(): tf.estimator.ModeKeys.EVAL,
             }
             fetches={
@@ -1111,14 +1111,14 @@ def train_rl_parallel():
             }
 
             fetches_ = sess.run(fetches, feed_dict=feed_dict)
-    
+
             hypotheses.extend(h.tolist() for h in fetches_['sample_ids'])
             references.extend(r.tolist() for r in in_arrays[1])
             hypotheses = utils.list_strip_eos(hypotheses, eos_token_id)
             references = utils.list_strip_eos(references, eos_token_id)
-            
+
         computeScore(epoch, sess, hypotheses,references, step)
-        
+
     def _train_epoch(epoch, step):
         logger.info("training epoch:{}".format(epoch))
 
@@ -1134,9 +1134,39 @@ def train_rl_parallel():
         for train_batch in tqdm.tqdm(train_iter,desc="training"):
 
             in_arrays = data_utils.seq2seq_pad_concat_convert(train_batch)
+
+            handle=sess.partial_run_setup(fetches=[predictions,dec_out_seq_len,global_step,agent_loss,train_op,summary_merged],
+                                          feeds=[encoder_input,decoder_input,qvalue_inputs])
+            fetches=sess.partial_run(handle,fetches={"samples":predictions,"dec_len":dec_out_seq_len},
+                                     feed_dict={encoder_input:in_arrays[0] } )
+
+            samples, decoder_out_length_py=fetches["samples"], fetches["dec_len"]
+            sample_text = tx.utils.map_ids_to_strs(
+                samples, vocab,
+                strip_pad="[PAD]",strip_bos="[BOS]",strip_eos="[EOS]",
+                join=False)
+            truth_text = tx.utils.map_ids_to_strs(
+                in_arrays[1], vocab,
+                strip_pad="[PAD]",strip_bos="[BOS]",strip_eos="[EOS]",
+                join=False)
+
+
+            # Computes rewards
+            reward = []
+            for ref, hyp in zip(truth_text, sample_text):
+                r = tx.evals.sentence_bleu([ref], hyp, smooth=True)
+                reward.append(r)
+
+            qvalues = discount_reward(
+                reward,
+                decoder_out_length_py,
+                discount=agent_hparams.discount_factor,
+                normalize=agent_hparams.normalize_reward)
+
             feed_dict = {
                 encoder_input: in_arrays[0],
                 decoder_input: in_arrays[1],
+                qvalue_inputs:qvalues,
                 tx.global_mode(): tf.estimator.ModeKeys.TRAIN,
             }
 
@@ -1146,28 +1176,13 @@ def train_rl_parallel():
                 'loss':agent_loss,
                 'train_op':train_op,
                 "sumry":summary_merged,
-                "samples":predictions
             }
 
             fetches = sess.run(fetches,feed_dict=feed_dict)
 
-            sample_text = tx.utils.map_ids_to_strs(
-                fetches['samples'], vocab,
-                strip_pad="[PAD]",strip_bos="[BOS]",strip_eos="[EOS]",
-                join=False)
-            truth_text = tx.utils.map_ids_to_strs(
-                in_arrays[1], vocab,
-                strip_pad="[PAD]",strip_bos="[BOS]",strip_eos="[EOS]",
-                join=False)
-
-            # Computes rewards
-            reward = []
-            for ref, hyp in zip(truth_text, sample_text):
-                r = tx.evals.sentence_bleu([ref], hyp, smooth=True)
-                reward.append(r)
-
             # Displays
             step = fetches['step']
+            loss=fetches["loss"]
             if step and step % config_data.display_steps == 0:
                 logger.info("rl:epoch={}, step={}, loss={:.4f}, reward={:.4f}".format(
                     epoch, step, loss, np.mean(reward)))
@@ -1179,15 +1194,15 @@ def train_rl_parallel():
 
         return step
 
-
     # Run the graph
-    with tf.Session() as sess:
+    sess_config = tf.ConfigProto(allow_soft_placement=True)
+    sess_config.gpu_options.per_process_gpu_memory_fraction = 0.9
+    with tf.Session(config=sess_config) as sess:
         logger.info("init variables !")
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
         sess.run(tf.tables_initializer())
-        BertRLTransformer.initBert(sess)
-
+        BertRLTransformer.initBert(sess,2)
 
         smry_writer = tf.summary.FileWriter(FLAGS.model_dir, graph=sess.graph)
 
@@ -1199,6 +1214,7 @@ def train_rl_parallel():
             if step>=config_data.train_steps:
                 break
             step = _train_epoch( epoch, step)
+
 
 
 
@@ -1222,7 +1238,7 @@ if __name__ == '__main__':
     flags.add_argument("--train_from", action="store_true",
                         help="train from a previous ckpt.")
 
-    flags.add_argument("--gpu_num",default=4,type=int,help="how many gpu to use")
+    flags.add_argument("--gpu_num",default=0,type=int,help="how many gpu to use")
     flags.add_argument("--device_name",default="/device:GPU",type=str,help="name prefix to gpu device")
 
     FLAGS = flags.parse_args()
@@ -1270,7 +1286,7 @@ if __name__ == '__main__':
                 logger.info("traditional training use rl")
                 train_rl()
             else:
-                logger.info("training use rl with multi-gpu({})".format(FLAGS.n_gpu))
+                logger.info("training use rl with multi-gpu({})".format(FLAGS.gpu_num))
                 train_rl_parallel()
         else:
             if FLAGS.gpu_num<2:

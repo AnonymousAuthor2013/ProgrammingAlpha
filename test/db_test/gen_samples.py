@@ -7,6 +7,7 @@ import os
 import json
 import logging
 from collections import Counter
+import random
 
 logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                     datefmt = '%m/%d/%Y %H:%M:%S',
@@ -15,12 +16,12 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
 logger = logging.getLogger(__name__)
 
 
-def recoverSent(texts,tokenizer=None):
+def recoverSent(texts,sep=" ",tokenizer=None):
     text=" ".join(texts)
     if tokenizer is None:
         text=" ".join(text.split())
     else:
-        text=" ".join(tokenizer.tokenize(text))
+        text=sep.join(tokenizer.tokenize(text))
 
 
     return text
@@ -99,51 +100,38 @@ def seq2seqGen():
     dataSet=[]
     for record in tqdm.tqdm(data_samples,desc="retriving seq2seq samples(size)".format(size)):
         del record["_id"]
-        #record["question"]=recoverSent(record["question"])
-        record["answer"]=recoverSent(record["answer"])
-        record["context"]=recoverSent(record["context"])
-        record["question"]=recoverSent(record["question"])
-        if len(record["answer"].split())<10 or len(record["context"].split())<20 or len(record["question"].split())<10:
+        if len(recoverSent(record["answer"]).split())<10 or len(recoverSent(record["context"]).split())<20 or \
+                len( recoverSent(record["question"]).split())<10:
             continue
         dataSet.append(record)
 
 
     def _constructSrc(record):
-        question=record["question"]
-        context=record["answer"]
+        question=recoverSent(record["question"])
+        context=recoverSent(record["context"],sep="[SEP]").split()[:args.contextLen+len(record["context"])-1]
+        context=" ".join(context).split("[SEP]")
+        pos=random.randint(0,len(context))
+        answer=recoverSent(record["answer"]).split()[:args.answerLen]
+        answer=" ".join(answer)
+        context=recoverSent(context[:pos])+answer+recoverSent(context[pos:])
+
         seq_src=[]
-        question_tokens=question.split()
+        question_tokens=question.split()[:args.questionLen]
         context_tokens=context.split()
 
-        q_len=min(args.questionLen,len(question_tokens))
-        for i in range(q_len):
-            seq_src.append(question_tokens[i])
-
-
-        left_len=args.contextLen+args.questionLen-len(seq_src)
-
-
-        c_len=min(len(context_tokens),left_len)
-        for i in range(c_len):
-            if len(seq_src)>=left_len:
-                break
-            seq_src.append(context_tokens[i])
-            i+=1
-
-
-        assert len(seq_src)<=args.questionLen+args.contextLen
+        seq_src+=question_tokens
+        seq_src+=["[SEP]"]
+        seq_src+=context_tokens
+        seq_src+=["[SEP]"]
 
         return " ".join(seq_src)+"\n"
 
     def _constructDst(record):
-        answer=record["answer"]
-        answer_tokens=answer.split()
+        answer=recoverSent(record["answer"])
+        answer_tokens=answer.split()[:args.answerLen]
         seq_tgt=[]
-        ans_len=min(args.answerLen,len(answer_tokens))
-        for i in range(ans_len):
-            seq_tgt.append(answer_tokens[i])
+        seq_tgt+=answer_tokens
 
-        assert len(seq_tgt)<=args.answerLen
 
         return " ".join(seq_tgt)+"\n"
 
@@ -172,9 +160,9 @@ if __name__ == '__main__':
     parser.add_argument('--db', type=str, default="corpus")
     parser.add_argument('--maxSize', type=int, default=-1)
     parser.add_argument('--task', type=str, default="seq2seq")
-    parser.add_argument('--contextLen', type=int, default=450)
-    parser.add_argument('--questionLen', type=int, default=62)
-    parser.add_argument('--answerLen', type=int, default=510)
+    parser.add_argument('--contextLen', type=int, default=1000)
+    parser.add_argument('--questionLen', type=int, default=100)
+    parser.add_argument('--answerLen', type=int, default=250)
 
     args = parser.parse_args()
 

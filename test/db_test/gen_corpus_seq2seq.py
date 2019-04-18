@@ -40,19 +40,6 @@ def init(questionsData_G,answersData_G,copy=True):
 
     logger.info("process {} init".format(multiprocessing.current_process()))
 
-def _filerLowQualityQuestion(question):
-    cond1=lambda q:("AcceptedAnswerId" not in q or not q["AcceptedAnswerId"])
-    cond2=lambda q:("AnswerCount" not in q or not q["AnswerCount"] or int(q["AnswerCount"])<10)
-    cond3=lambda q:("FavoriteCount" not in q or not q["FavoriteCount"] or int(q["FavoriteCount"])<3)
-
-
-    if cond1(question) or ( cond2(question) and cond3(question) ):
-        'high quality question only'
-        return False
-
-    return True
-
-
 
 def fetchQuestionData(q_ids_set):
     questionsData={}
@@ -62,14 +49,12 @@ def fetchQuestionData(q_ids_set):
     query={
         "$or":[
             {"AcceptedAnswerId":{"$exists":True,"$ne":''},"FavoriteCount":{"$gte":3}},
-            {"AnswerCount":{"$gte":args.answerNum}},
+            {"AcceptedAnswerId":{"$exists":True,"$ne":''},"AnswerCount":{"$gte":5}},
          ]
     }
 
     for question in tqdm.tqdm(docDB.questions.find(query).batch_size(args.batch_size),desc="loading questions"):
 
-        if _filerLowQualityQuestion(question)==False:
-            continue
 
         Id=question["Id"]
 
@@ -94,7 +79,6 @@ def fetchAnswerData(ansIdxGlobal,questionsDataGlobal):
 
         if  Id not in ansIdxGlobal or ans["ParentId"] not in questionsDataGlobal:
             continue
-
 
         answersData[Id]={"Body":ans["Body"],"Score":ans["Score"]}
 
@@ -136,7 +120,7 @@ def _getPreprocess(txt,maxLen,cal_lose=False):
 def _genCore(distances):
     #try:
         q_id=distances["id"]
-
+        question_id=q_id
         #get question
         if q_id not in questionsData:
             return None
@@ -207,7 +191,7 @@ def _genCore(distances):
             return None
 
 
-        record={"question":question,"context":context,"answer":answer}
+        record={"Id":question_id,"source":args.db,"question":question,"context":context,"answer":answer}
 
         return record
     #except :
@@ -301,9 +285,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch_size', type=int, default=100)
 
-    parser.add_argument('--db', type=str, default="datascience")
-    parser.add_argument('--answerLen', type=int, default=500)
-    parser.add_argument('--contextLen', type=int, default=400)
+    parser.add_argument('--db', type=str, default="crossvalidated")
+    parser.add_argument('--answerLen', type=int, default=250)
+    parser.add_argument('--contextLen', type=int, default=1000)
     parser.add_argument('--questionLen', type=int, default=100)
     parser.add_argument('--lose_rate', type=float, default=0.5)
 
@@ -316,7 +300,5 @@ if __name__ == '__main__':
     docDB=MongoStackExchange(host='10.1.1.9',port=50000)
     dbName=args.db
     docDB.useDB(dbName)
-
-
 
     main()
