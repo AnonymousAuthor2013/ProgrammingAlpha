@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-export CUDA_VISIBLE_DEVICES='2'
+export CUDA_VISIBLE_DEVICES='3'
 maxLen=200
 python /home/LAB/zhangzy/ProgrammingAlpha/OpenNMT-py/translate.py \
                     -batch_size 4 \
                     -beam_size 30 \
                     -model /home/LAB/zhangzy/ProjectModels/knowledgeComprehension/translate_model.pt \
-                    -src /home/LAB/zhangzy/ProjectData/seq2seq/unsolved-random \
+                    -src /home/LAB/zhangzy/ProjectData/seq2seq/unsolved-data \
                     -output /home/LAB/zhangzy/ProjectData/predictions/"predict-unsolved-${maxLen}.txt" \
                     -min_length 35 \
                     -max_length ${maxLen} \

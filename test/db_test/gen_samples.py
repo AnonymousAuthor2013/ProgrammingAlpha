@@ -110,6 +110,7 @@ def seq2seqGen():
         question=recoverSent(record["question"])
         context=recoverSent(record["context"],sep="[SEP]").split()[:args.contextLen+len(record["context"])-1]
         context=" ".join(context).split("[SEP]")
+
         pos=random.randint(0,len(context))
         answer=recoverSent(record["answer"]).split()[:args.answerLen]
         answer=" ".join(answer)

@@ -43,7 +43,7 @@ class PositionalEncoding(nn.Module):
        dim (int): embedding size
     """
 
-    def __init__(self, dim, max_len=5000):
+    def __init__(self, dim, max_len=1500):
         if dim % 2 != 0:
             raise ValueError("Cannot use sin/cos positional encoding with "
                              "odd dim (got dim={:d})".format(dim))
@@ -171,7 +171,7 @@ class TransformerModel(nn.Module):
         self.decoder = decoder
 
     def forward(self, src, tgt, lengths, bptt=False):
-        print("lengths, src and tgt size is ",lengths.size(),src.size(),tgt.size())
+        #print("lengths, src and tgt size is ",lengths.size(),src.size(),tgt.size())
         #src_enc=src.squeeze(2)
 
         tgt = tgt[:-1]  # exclude last target from inputs
@@ -267,12 +267,13 @@ class TextGeneratorModel(object):
         tgt_base_field = self.fields["tgt"].base_field
         vocab_size = len(tgt_base_field.vocab)
         pad_idx = tgt_base_field.vocab.stoi[tgt_base_field.pad_token]
-        model_dim=self.model_opt.rnn_size
+        model_dim= self.model_opt.rnn_size #if hasattr(self.model_opt,"rnn_size") else 768
         max_seq_length=5000
         max_relative_position=512
         heads=12
         feed_forwad_size=3072
-        drop_rate=self.model_opt.dropout
+        drop_rate=self.model_opt.dropout #if hasattr(self.model_opt,"dropout") else 0
+        layers=self.model_opt.layers #if hasattr(self.model_opt,"layers") else 4
         #tgt embeddings
 
         transformerEmb=OnmtBertEmbedding(vocab_size,model_dim,max_seq_length,drop_rate,pad_idx,bert.embeddings)
@@ -283,7 +284,7 @@ class TextGeneratorModel(object):
 
         #decoder
         transformerDecoder=onmt.decoders.TransformerDecoder(
-            num_layers=self.model_opt.layers, d_model=model_dim, heads=heads, d_ff=feed_forwad_size,
+            num_layers=layers, d_model=model_dim, heads=heads, d_ff=feed_forwad_size,
                          copy_attn=True, self_attn_type="scaled-dot", dropout=drop_rate, embeddings=transformerEmb,
                          max_relative_positions=max_relative_position
         )
@@ -309,8 +310,22 @@ class TextGeneratorModel(object):
         for k in generator_dict:
             weight_dict["generator."+k]=generator_dict[k]
 
-        print("decoder layer num",self.model_opt.layers)
-        self.transformer.load_state_dict(weight_dict)
+        transformer_dict=self.transformer.state_dict()
+        exlude_dict=("encoder.embeddings.token_type_embeddings.weight","encoder.embeddings.position_embeddings.weight",
+                     "decoder.embeddings.position_embeddings.weight")
+        restore_dict={}
+
+        layers= self.model_opt.layers #if hasattr(self.model_opt,"layers") else 4
+        logger.info("decoder layer num: %d"% layers)
+
+        #self.transformer.load_state_dict(weight_dict)
+        for k,v in weight_dict.items():
+            if k in exlude_dict:
+                logger.info("skip :{}".format(k))
+                continue
+            restore_dict[k]=v
+        transformer_dict.update(restore_dict)
+
 
         if model_file:
             logger.info("init model weight with "+model_file)

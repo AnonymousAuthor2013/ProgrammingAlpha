@@ -32,7 +32,7 @@ def fetchQuestionData():
 
     query={
         "$or":[
-            {"AcceptedAnswerId":{"$exists":True,"$ne":''},"FavoriteCount":{"$gte":1}},
+            {"AcceptedAnswerId":{"$exists":True,"$ne":''}}, #,"FavoriteCount":{"$gte":1}},
             {"AnswerCount":{"$gte":args.answerNum}},
          ]
     }
@@ -91,6 +91,7 @@ def fetchIndexData(questionDataGlobal):
 #generate Core
 def _getBestAnswers(q_id,K):
     answers=[]
+    ans_id=-1
     if "AcceptedAnswerId" in questionsData[q_id]:
         ans_id=questionsData[q_id]["AcceptedAnswerId"]
 
@@ -101,7 +102,7 @@ def _getBestAnswers(q_id,K):
     ans_idx=indexData[q_id]["Answers"]
     scored=[]
     for id in ans_idx:
-        if id in answersData:
+        if id!=ans_id and id in answersData:
             scored.append((id,answersData[id]["Score"]))
     if scored:
         scored.sort(key=lambda x:x[1],reverse=True)
@@ -131,7 +132,7 @@ def _genCore(q_id):
     if not answer:
         return None
 
-    record={"answers":answer}
+    record={"answers":answer,"source":dbName}
     record.update(question)
     return record
 

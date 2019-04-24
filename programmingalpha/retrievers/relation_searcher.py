@@ -400,8 +400,17 @@ class RelationSearcher(object):
         logits=self.getRelationProbability(eval_dataloader)
         relations=np.argmax(logits,axis=1)
 
-        results=np.concatenate((doc_ids,relations),axis=1).tolist()
-        results.sort(key=lambda x:int(x[1]),reverse=False)
+        dprobs=np.concatenate((doc_ids,relations),axis=1)
+        results=[]
+        for i in (0,1,2,3):
+            levels=(dprobs[:,1]==str(i))
+            if len(levels)>0:
+                levels=dprobs[levels]
+                levels.sort(key=lambda x:int(x[2]),reverse=True)
+                results.extend(levels)
+
+        #results.sort(key=lambda x:int(x[1]),reverse=False)
+
         return results[:k]
 
     def getRelationProbability(self,eval_dataloader:DataLoader):
@@ -420,8 +429,10 @@ class RelationSearcher(object):
 
             b_logits = b_logits.detach().cpu().numpy()
 
-
             logits.append(b_logits)
+
+        logits=map(lambda x:(np.argmax(x),np.max(x)), logits )
+        logits=list(logits)
 
         logits=np.concatenate(logits,axis=0)
 

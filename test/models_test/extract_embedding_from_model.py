@@ -34,19 +34,25 @@ def extractBert():
     #for i in range(10):
     #    print(weight[i])
     with open(programmingalpha.Bert768+"embeddings.txt","w") as f:
+        vec_strs=[]
         for i  in range(len(weight)):
             vec=weight[i]
             vec_str=list(map(lambda x :str(x),vec))
             token=tokenizer.ids_to_tokens[i]
             vec_str.insert(0,token)
             vec_str=" ".join(vec_str)
-            f.writelines(vec_str+"\n")
+            vec_strs.append(vec_str+"\n")
+
+        def turnIndexs(index1,index2):
+            tmp=vec_strs[index1]
+            vec_strs[index1]=vec_strs[index2]
+            vec_strs[index2]=tmp
+        turnIndexs(0,1)
+        turnIndexs(0,100)
+        f.writelines(vec_strs)
 
 
-    with open(programmingalpha.Bert768+"vocab.txt","w") as f:
-        for i in range(len(weight)):
-            token=tokenizer.ids_to_tokens[i]
-            f.write(token+"\n")
+
 
 def extractOpenAI():
     model = OpenAIGPTModel.from_pretrained(modelPath[args.model])

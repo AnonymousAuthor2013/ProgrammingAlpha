@@ -8,11 +8,13 @@ import onmt.inputters as inputters
 import torch
 from onmt.decoders.ensemble import EnsembleModel
 from ..translate.beam import GNMTGlobalScorer
-def buildModelForPrediction(model_path=None,checkpoint=None,opt=None):
-
+def buildModelForPrediction(model_path=None,checkpoint=None,model_opt=None,fields=None):
+    TextGeneratorModel.model_opt=model_opt
+    TextGeneratorModel.opt=model_opt
+    TextGeneratorModel.fields=fields
     textGen=TextGeneratorModel()
-    if opt is not None:
-        print(opt)
+    if model_opt is not None:
+        print(model_opt)
     textGen.loadModel(model_path,checkpoint)
     return textGen.transformer
 
@@ -39,18 +41,14 @@ def load_test_model_one(opt, model_path=None):
         )
     else:
         fields = vocab
-
-    model = buildModelForPrediction(checkpoint=checkpoint,opt=opt)
+    print(opt)
+    model = buildModelForPrediction(checkpoint=checkpoint,model_opt=model_opt,fields=fields)
 
     if opt.fp32:
         model.float()
     model.eval()
     model.generator.eval()
 
-    if opt.gpu!=-1:
-        model.to(torch.device("cuda"))
-        #from torch.nn import DataParallel
-        #model=DataParallel(model).module
 
     return fields, model, model_opt
 

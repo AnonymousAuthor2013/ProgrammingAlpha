@@ -37,7 +37,7 @@ KBSource={'stackoverflow','datascience','crossvalidated','AI'}
 # ------------------------------------------------------------------------------
 # Drop in to interactive
 # ------------------------------------------------------------------------------
-docDB=DBLoader.MongoStackExchange(**DBLoader.MongodbAuth)
+docDB=DBLoader.MongoStackExchange(host='10.1.1.9',port=50000)
 
 sranker=retrievers.get_class('semantic')(programmingalpha.ModelPath+"/pytorch_model.bin")
 fetchEach=25
@@ -56,10 +56,9 @@ def process(query, k=1):
                  "db":dbName}
             )
             docDB.useDB(dbName)
-            docDB.setDocCollection(retrievers.WorkingDocCollection)
             docs.append(
                 {"Id":"{}|||{}".format(doc_names[i],dbName),
-                 "text":docDB.get_doc_text(doc_names[i],chunk_answer=0)
+                 "text":docDB.get_doc_text("question",doc_names[i])
                  }
                  )
 
@@ -71,9 +70,8 @@ def process(query, k=1):
     )
     for i in range(len(results)):
         docDB.useDB(results[i]["db"])
-        docDB.setDocCollection(retrievers.WorkingDocCollection)
         table.add_row([ i + 1, "{}-{}".format(results[i]["Id"],results[i]["db"]),
-                        '%.5g' % results[i]["score"], docDB.get_doc_text(results[i]["Id"],0,0) ])
+                        '%.5g' % results[i]["score"], docDB.get_doc_text(,results[i]["Id"],0,0) ])
     print(table)
 
 
@@ -91,7 +89,6 @@ def process(query, k=1):
 
 
         docDB.useDB(dbName)
-        docDB.setDocCollection(retrievers.WorkingDocCollection)
         table.add_row([ i + 1, r[0], '%.5g' % score, docDB.get_doc_text(doc_id,0,0) ])
 
     print(table)
