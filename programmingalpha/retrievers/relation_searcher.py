@@ -11,7 +11,7 @@ import programmingalpha
 import torch
 from torch.utils.data import TensorDataset, DataLoader, SequentialSampler
 from programmingalpha.tokenizers import BertTokenizer
-from programmingalpha.models.InferenceModels import BertForLinkRelationPrediction
+from programmingalpha.models.InferenceModels import BertForLinkRelationPrediction, InferenceNet
 from pytorch_pretrained_bert import BertConfig
 from tqdm import tqdm, trange
 from multiprocessing import Pool as ProcessPool
@@ -311,7 +311,7 @@ class RelationSearcher(object):
     label_map = {"duplicate":0,"direct":1,"transitive":2,"unrelated":3}
     __default_label="unrelated"
 
-    def initRunningConfig(self, model:BertForLinkRelationPrediction):
+    def initRunningConfig(self, model:InferenceNet):
         if self.server_ip and self.server_port:
             # Distant debugging - see https://code.visualstudio.com/docs/python/debugging#_attach-to-a-local-script
             import ptvsd
@@ -357,7 +357,7 @@ class RelationSearcher(object):
 
     def __init__(self,model_dir,model_name):
 
-        model = BertForLinkRelationPrediction(BertConfig(os.path.join(model_dir, model_name + ".json")), num_labels=4)
+        model = InferenceNet(BertConfig(os.path.join(model_dir, model_name + ".json")), num_labels=4)
         logger.info("loading weghts for {}".format(model_name))
         model_state_dict = torch.load(os.path.join(model_dir,model_name+".bin"))
         model.load_state_dict(model_state_dict)

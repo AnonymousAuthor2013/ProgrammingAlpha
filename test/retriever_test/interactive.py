@@ -71,7 +71,7 @@ def process(query, k=1):
     for i in range(len(results)):
         docDB.useDB(results[i]["db"])
         table.add_row([ i + 1, "{}-{}".format(results[i]["Id"],results[i]["db"]),
-                        '%.5g' % results[i]["score"], docDB.get_doc_text(,results[i]["Id"],0,0) ])
+                        '%.5g' % results[i]["score"], docDB.get_doc_text("question",results[i]["Id"],0,0) ])
     print(table)
 
 

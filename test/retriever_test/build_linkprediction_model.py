@@ -4,7 +4,7 @@ import random
 import argparse
 from tqdm import tqdm, trange
 from pytorch_pretrained_bert.optimization import BertAdam
-from programmingalpha.models.InferenceModels import BertForLinkRelationPrediction
+from programmingalpha.models.InferenceModels import InferenceNet
 from pytorch_pretrained_bert.optimization import warmup_linear
 from pytorch_pretrained_bert.file_utils import PYTORCH_PRETRAINED_BERT_CACHE
 from torch.utils.data import (DataLoader, RandomSampler, SequentialSampler,
@@ -17,6 +17,9 @@ logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(messa
                     datefmt = '%m/%d/%Y %H:%M:%S',
                     level = logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+BuildModel=InferenceNet
 
 class SimpleTokenizer(BertTokenizer):
     never_split=("[UNK]", "[SEP]", "[PAD]", "[CLS]", "[MASK]","[NUM]","[CODE]")
@@ -53,7 +56,7 @@ def loadModel(num_labels):
     output_model_file = os.path.join(args.output_dir, args.model_name+".bin")
 
     config = BertConfig(output_config_file)
-    model = BertForLinkRelationPrediction(config, num_labels=num_labels)
+    model = BuildModel(config, num_labels=num_labels)
     logger.info("loading weights for model {} from {}".format(args.model_name,output_model_file))
     model.load_state_dict(torch.load(output_model_file))
 
@@ -139,8 +142,8 @@ def main():
                 num_train_optimization_steps = num_train_optimization_steps // torch.distributed.get_world_size()
 
         # Prepare model
-        model = BertForLinkRelationPrediction.from_pretrained(args.bert_model,
-                                                              num_labels = num_labels)
+
+        model = BuildModel.from_pretrained(args.bert_model,num_labels = num_labels)
 
         if args.fp16:
             model.half()
@@ -223,6 +226,9 @@ def main():
         logger.info("  Batch size = %d", args.eval_batch_size)
 
         eval_dataloader = DataLoader(eval_data, sampler=eval_sampler, batch_size=args.eval_batch_size)
+        sranker=RelationSearcher(args.output_dir, args.model_name)
+        s_outs=sranker.getRelationProbability(eval_dataloader)
+        print("s-out",s_outs[:10])
 
         model.eval()
         eval_loss, eval_accuracy, eval_error = 0, 0, 0

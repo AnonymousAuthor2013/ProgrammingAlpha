@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+export CUDA_VISIBLE_DEVICES='3'
 python build_linkprediction_model.py \
     --model_name searcher \
     --data_dir /home/LAB/zhangzy/ProjectData/inference \
@@ -14,7 +15,7 @@ python build_linkprediction_model.py \
     --num_train_epochs 20 \
     --eval_step_size 1000 \
     --do_lower_case \
-    --max_seq_length 512 \
+    --max_seq_length 500 \
     --overwrite \
     --do_train \
     #/home/LAB/zhangzy/ProjectModels/knowledgeSearcher/model1 \
