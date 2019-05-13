@@ -53,7 +53,6 @@ https://www.elastic.co/.
 <ul>
 <li><code>machine learning:</code>scikit-learn, tensorflow, openNMT,texar,pytorch,networkx,sumeval,summy,TextBlob,bert-as-service</li>
 <li><code>data preprocessing:</code> pymongo, numpy, pandas</li>
-<li><code>models:</code> Models required for the tool</li>
 </ul>
 
 <p><strong>Project Check</strong></p>
@@ -191,7 +190,7 @@ Evaluate the Model Performance
 </strong></p>
 <ul>
 <li>
-Sample 2000 solved questions via runining ProgrammingAlpha/test/db_test/gen_samples.py --maxSize 2000 or unsolved questions via ProgrammingAlpha/test/db_test/unsolved_seq2seq.py. Or you can directly invoke the Google Custom Search Engine after including the 4 online forums mentioned before.
+Sample 2000 solved questions via runining "ProgrammingAlpha/test/db_test/gen_samples.py --maxSize 2000 --task seq2seq" or unsolved questions via ProgrammingAlpha/test/db_test/unsolved_seq2seq.py. Or you can directly invoke the Google Custom Search Engine after including the 4 online forums mentioned before.
 </li>
 <li>
 After finishing training the AnswerNet and other text generation models, use ProgrammingAlpha/test/text_generation_test/run_inference.sh or ProgrammingAlpha/test/text_generation_test/transformerinference.py to generate answers to the sampled questions.
@@ -199,13 +198,44 @@ After finishing training the AnswerNet and other text generation models, use Pro
 <li>
 Run ProgrammingAlpha/test/utilities_test/computeScore.py true_answers.file generated_answers.file to get the evaluation BLEU/ROUGUE-2 score.
 </li>
+<li>
+We also have conducted a simple user survey using online web here https://wj.qq.com/s2/3597786/b668/.
+And the resuls are listed below.
+</li>
 </ul>
+
+### User Survey
+| Id      | 2   | 1      | 0   | -1      | -2   | mean      | std.dev.   |
+| ---| ---|---| ---|---| ---|----|----|
+| 1 | 17 | 8 | 1  | 0 | 1 | 1.481 | 0.768 |
+| 2 | 3 | 11 | 9 | 1 | 3  | 0.37 | 1.196  |
+| 3 | 0 | 7 | 10 | 5 | 5 | -0.296 | 1.097  |
+| 4 | 1 | 5 | 7 | 10 | 4 | -0.407 | 1.13  |
+| 5 | 24 | 3 | 0 | 0 | 0 | 1.888 | 0.098  |
+| 6 | 13 | 11 | 1 | 1 | 1 | 1.259 | 0.932 |
+| 7 | 13 | 10 | 4 | 0 | 0 | 1.333 | 0.518 |
+| 8 | 6 | 8 | 7 | 4 | 2 | 0.444 | 1.432  |
+| 9 | 19 | 6 | 1 | 0 | 1 | 1.555 | 0.765 |
+| 10 | 3 | 14 | 7 | 2 | 1 | 0.592 | 0.834 |
+| total | 99 | 83 | 47 | 23 | 18 | 0.822 | 0.877 |
 
 
 <p><strong>Evaluate the KnowlAlpha</strong></p>
 <ul>
 <li>
-
+Sample 2000 solved questions via runining "ProgrammingAlpha/test/db_test/gen_samples.py --maxSize 2000 --task inference" to generate the test samples. 
+</li>
+<li>
+Run the ProgrammingAlpha/test/retriever_test/run_model.sh --do_eval to predict the link distance results directly, which is used to measure model performance on the test samples.
+</li>
+<li>
+Run the ProgrammingAlpha/test/retriever_test/interactive.py with input stream re-directed to a file containing post ids of test samples, which is the evaluation of KnowAlpha.
+</li>
+<li>
+1)Use the sklearn metrics toolkit to evaluate the model performance of Inference Net; 2) Refer to https://github.com/microsoft/recommenders for evaluation of the retrieved results of KnowAlpha. 
+</li>
+<li>
+Other Inference Networks can be found and used in https://github.com/asyml/texar/tree/master/examples/sentence_classifier and https://github.com/zhangzhenyu13/ATEC_NLP.
 </li>
 </ul>
 <p>..........................................................</p>
