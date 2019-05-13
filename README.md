@@ -262,7 +262,7 @@ The full one-shot deployment is under working now...
 Please give a cite to our work if you want use the project somewhere else. 
 </h2>
 <pre><code>@INPROCEEDINGS{programmingAlpha, 
-author={Zhenyu Zhang, Hailong Sun, HongyuZhang, PengboCai}, 
+author={Annonymous Authors}, 
 title={ProgrammingAlpha: An Automatic Question Answering AI System For Programmers},
 year={2019},
 url={https://github.com/zhangzhenyu13/ProgrammingAlpha} 
