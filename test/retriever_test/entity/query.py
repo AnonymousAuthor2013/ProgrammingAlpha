@@ -7,6 +7,7 @@ from entity.question import Question
 from retriver import search_es
 from util import tokenizer
 from util.preprocessor import PreprocessPostContent
+import numpy as np
 
 
 class Query:
@@ -17,11 +18,12 @@ class Query:
         self.created_date = created_date
         self.searched_post_list = []
 
-    def searchFromES(self, size=200):
+    def search(self, size=200):
         search_result_list= search_es.search(self.title, size)
         # Post list
         post_obj_list = []
         for result in search_result_list:
+            result = result['_source']
             # Question
             question = Question(result['question']['Title'], result['question']['Body'], result['question']['CommentCount'], result['question']['Score'], result['question']['Tags'], result['question']['CreationDate'])
             # Answer list
@@ -37,6 +39,11 @@ class Query:
             post_obj_list.append(Post(question, answer_list))
 
         self.searched_post_list = post_obj_list
+        # 使用ES返回的 _score 值
+        for i in range(len(search_result_list)):
+            es_tfidf = search_result_list[i]['_score']
+            self.searched_post_list[i].set_question_body_tfidf(es_tfidf)
+
 
     def parse_body(self):
         processor = PreprocessPostContent()
@@ -59,8 +66,8 @@ class Query:
 
         return ret
 
-    def calculate_title_relevance(self, post_list):
-        for post in post_list:
+    def calculate_title_relevance(self):
+        for post in self.searched_post_list:
             post.set_title_relevance(self.__calculate_a_title_relevance(post.question_obj))
 
     def __calculate_a_tag_relevance(self, question_obj):
@@ -72,11 +79,11 @@ class Query:
 
         return ret
 
-    def calculate_tag_relevance(self, post_list):
-        for post in post_list:
+    def calculate_tag_relevance(self):
+        for post in self.searched_post_list:
             post.set_tag_relevance(self.__calculate_a_tag_relevance(post.question_obj))
 
-    def calculate_tf_idf(self, post_list=None, type="question_body"):
+    def calculate_tf_idf(self, type="question_body"):
         """
         计算TF_IDF值
         :param post_list:
@@ -87,10 +94,10 @@ class Query:
         # question body语料 每一行是每一个documents(首行是query body(处理后的))
         corpus.append(self.parse_body())
         if type == "question_body":
-            for post in post_list:
+            for post in self.searched_post_list:
                 corpus.append(post.question_obj.parse_body())
         elif type == "answer_body":
-            for post in post_list:
+            for post in self.searched_post_list:
                 corpus.append(post.concat_answer_body())
         else:
             raise NameError("Type Error")
@@ -113,7 +120,7 @@ class Query:
                     if tfidf_array[0, j] != 0:
                         sum += tfidf_array[i, j]
 
-                post_list[i - 1].set_question_body_tfidf(sum)
+                self.searched_post_list[i - 1].set_question_body_tfidf(sum)
         else:
             for i in range(1, row):
                 sum = 0
@@ -121,7 +128,7 @@ class Query:
                     if tfidf_array[0, j] != 0:
                         sum += tfidf_array[i, j]
 
-                post_list[i - 1].set_answer_body_tfidf(sum)
+                self.searched_post_list[i - 1].set_answer_body_tfidf(sum)
 
     def __calculate_a_score(self, post_obj, alpha):
         comment_count = post_obj.question_obj.comment_count
@@ -133,8 +140,8 @@ class Query:
         score = (1 - alpha) * comment_count + alpha * vote_score
         return score
 
-    def calculate_score(self, post_list, alpha=0.8):
-        for post in post_list:
+    def calculate_score(self, alpha=0.8):
+        for post in self.searched_post_list:
             post.set_score(self.__calculate_a_score(post, alpha))
 
     def __get_body_code(self):
@@ -161,24 +168,14 @@ class Query:
 
         return code_relevance
 
-    def calculate_code_relevance(self, post_list):
-
-        for post in post_list:
+    def calculate_code_relevance(self):
+        for post in self.searched_post_list:
             code_relevance = self.__calculate_a_code_relevance(post)
             post.set_code_relevance(code_relevance)
 
+    # Standard normalization
     def __normalize(self, score_list):
-        max_val = max(score_list)
-        min_val = min(score_list)
-        normalized_score_list = []
-        for score in score_list:
-            if max_val == min_val:
-                normalized_score_list.append(0)
-            else:
-                normalized_score_list.append((score-min_val)/(max_val-min_val))
-
-        return normalized_score_list
-
+        return np.divide(np.subtract(score_list, np.average(score_list)), (np.std(score_list) + 0.0001))
 
     def normalized_post_score(self):
         title_relevance_list = []
@@ -211,6 +208,20 @@ class Query:
             self.searched_post_list[i].score = score_list[i]
             self.searched_post_list[i].code_relevance = code_relevance_list[i]
 
+    def calculate_posts_all_score(self):
+        for post in self.searched_post_list:
+            post.cal_all_score()
+
+    def range(self):
+        self.calculate_title_relevance()
+        # self.calculate_tf_idf(type="question_body")
+        # self.calculate_tf_idf(type="answer_body")
+        self.calculate_code_relevance()
+        self.calculate_tag_relevance()
+        self.calculate_score()
+        self.normalized_post_score()
+        self.calculate_posts_all_score()
+        self.searched_post_list = sorted(self.searched_post_list, reverse=True)
 
 if __name__ == '__main__':
     tag_list1 = ['Java', '<java>', 'println']
@@ -218,44 +229,7 @@ if __name__ == '__main__':
     tag_list3 = ['<c++>', '<JAVA>', '<python>', 'pycharm']
 
     query = Query("How to use println in java", "Please show me how to use <code>println()<code> in java", tag_list1, "2019-5-16")
-    question1 = Question("your title question",
-                         "<p>question1 para1 content 1 <code>test_function()</code><code>print()</code>.</p><p>question1 para2 content.</p><p>question1 para3 content.</p>",
-                         2, 8, tag_list1, "2019-5-16")
-    question2 = Question("your title2 question title2 title",
-                         "<p>question2 para1 content. have some question1 info</p><p>question2 para2 content.<code>question2_function</code></p><p>question2 para3 content.</p>",
-                         2, 10, tag_list2, "2019-5-16")
-    question3 = Question("your title question title title",
-                         "<p>question3 para1 content.</p><p>question3 para2 content.</p><p>question3 para3 content.<code>question3_para3_function</code></p>",
-                         21, 100, tag_list3, "2019-5-16")
-
-    answer1 = Answer("<p>question1 para1 is good</p>", "2019-5-16", score=10, comment_count=1)
-    answer2 = Answer("<p>question1 and question2 is good</p><code>answer_code</code>", "2019-5-16", score=2, comment_count=10)
-    answer3 = Answer("<p>question 3 is good</p>", "2019-5-16", score=5, comment_count=11)
-    answer_list = [answer1, answer2, answer3]
-    p1 = Post(question1, answer_list)
-    p2 = Post(question2, answer_list)
-    p3 = Post(question3, answer_list)
-    p = Post(question1, answer_list)
-    post_list = [p1, p2, p3]
-
-    # query.calculate_tf_idf(post_list=post_list)
-    # for post in post_list:
-    #     print(post.tfidf)
-    # print(p.concat_answer_body())
-    query.calculate_tf_idf(post_list=post_list, type="question_body")
-    query.calculate_tf_idf(post_list=post_list, type="answer_body")
-    query.calculate_score(post_list)
-    query.calculate_code_relevance(post_list)
-    query.searchFromES()
-    post_list = query.searched_post_list
-    query.calculate_title_relevance(post_list)
-    query.normalized_post_score()
-    for post in query.searched_post_list:
-        # print(post.question_tfidf)
-        # print(post.answer_tfidf)
-        # print(post.title_relevance)
-        # print(post.tag_relevance)
-        print(post.title_relevance)
-
-    query.searchFromES()
-    post_list = query.searched_post_list
+    query.search(size=2000)
+    query.range()
+    for pos in query.searched_post_list:
+        print(pos.question_obj.title)
