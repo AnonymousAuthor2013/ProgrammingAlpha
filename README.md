@@ -184,7 +184,7 @@ Deploying AnsAlpha
 <p><strong>User Interface</strong></p>
 <ul>
 <li>
-We currently implemented a very simple answering outlook asking box, which is available in https://github.com/zhangzhenyu13/ProgrammingAlpha/tree/master/alphaservices.
+We currently implemented a very simple answering outlook asking box, which is available in https://github.com/AnonymousAuthor2013/ProgrammingAlpha/tree/master/alphaservices.
 </li>
 <li>
 The restful API for text-generation network can be started following instrcutions here http://forum.opennmt.net/t/simple-opennmt-py-rest-server/1392. 
