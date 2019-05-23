@@ -55,7 +55,6 @@ https://www.elastic.co/.
 <li>The mentioned neural network models are in ProgrammingAlpha/programmingalpha/models. </li>
 <li>The evaluation metiric tool APIs are in ProgrammingAlpha/programmingalpha/Utility/metrics.py. </li>
 <li>Run the scripts in ProgrammingAlpha/test/db_test/ folder to prepare training data. </li>
-<li>Run the scripts in ProgrammingAlpha/test/retriver_test/ folder to build the model mentioned in KnowAlpha.</li>
 <li>Run the scripts in ProgrammingAlpha/test/text_generation_test/ to build the model mentioned in AnsAlpha. </li>
 </ul>
 
@@ -69,9 +68,6 @@ Our training data from 4 online Q&A forums currently consists of Stack Overflow,
 <ul>
 <li>
 Build a MongoDB cluster and put all the data needed to the Database. Then deploy the elastic search engine on top of your database cluster.
-</li>
-<li>
-After downloading the java crawler maven project, please use intelliJ idea at: https://www.jetbrains.com/idea/ to deploy the crawler jar package in your machine
 </li>
 <li>
 Make the dirs listed in ProgrammingAlpha/programmingalpha/__init__.py.
@@ -111,9 +107,6 @@ Prepare the training Data
   <ul>
   <li>
   Run ProgrammingAlpha/test/db_test/buildQAIndexer.py firstly to gather all answers to each question.
-  </li>
-  <li>
-  Run ProgrammingAlpha/test/db_test/gen_kwnowledge_unit.py to generate knowledge unit data used by KnowAlpha.
   </li>
   <li>
   Push the knowledge units data to mongoDB cluster.
