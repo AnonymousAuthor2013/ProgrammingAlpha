@@ -2,28 +2,22 @@
 <html>
 <body>
   <div id="readme" class="readme blob instapaper_body">
-    <article class="markdown-body entry-content" itemprop="text"><h1><a id="user-content-improving-ir-based-bug-localization-with-context-aware-query-reformulation" class="anchor" aria-hidden="true" href="#improving-ir-based-bug-localization-with-context-aware-query-reformulation"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>ProgrammingAlpha: An Automatic Question Answering AI System For Programmers</h1>
-<h2><a id="user-content-accepted-paper-at-esecfse-2018" class="anchor" aria-hidden="true" href="#accepted-paper-at-esecfse-2018"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>The Source Code For ProgrammingAlpha Project</h2>
+    <article class="markdown-body entry-content" itemprop="text"><h1><a id="user-content-improving-ir-based-bug-localization-with-context-aware-query-reformulation" class="anchor" aria-hidden="true" href="#improving-ir-based-bug-localization-with-context-aware-query-reformulation"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>AnsAlpha: Towards Automatic Answering of Developers’ Questions through Comprehension and Generation</h1>
+<h2><a id="user-content-accepted-paper-at-esecfse-2018" class="anchor" aria-hidden="true" href="#accepted-paper-at-esecfse-2018"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>The Source Code For AnsAlpha Project</h2>
 
-<pre><code>
-ProgrammingAlpha consists of two part, i.e. 
-the AnsAlpha which can generate answers to questions and the KnowAlpha which can recommend answering context.
-We shall give an insturction that will guide you to use the source code in this project to 
-build AnsAlpha and KnowAlpha, and then deploy ProgrammingAlpha in practice.
-</code></pre>
 
     
 <h2>
 <a id="user-content-subject-systems-6" class="anchor" aria-hidden="true" href="#subject-systems-6"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>
-Instruction for building the recommender system from source code and executing experiments
+Instruction for building the Q&A system from source code and executing experiments
 </h2>
 <ul>
 <li>Prepare system environment</li>
-<li>Prepare Data</li>
-<li>Download BERT Model</li>
-<li>Train Models</li>
-<li>Evaluation Results</li>
+<li>Models</li>
+<li>Data Pipeline</li>
+<li>Build Models</li>
 <li>Deploy System</li>
+<li>Evaluation Results</li>
 </ul>
 
 <h2><a id="user-content-materials-included" class="anchor" aria-hidden="true" href="#materials-included"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>
@@ -97,18 +91,6 @@ Store the pretrained model weight and auxiliary data of BERT model to the dirs B
 Prepare the training Data
 </h2>
 
-<p><strong>Data Analysis and Link Analysis</strong></p>
-  <ul>
-  <li>
-  Run ProgrammingAlpha/test/associationAlg_test/seedSearchForTags.py to analyze the AI related tags and using association mining to find all required posts data.
-  </li>
-  <li>
-  Run ProgrammingAlpha/test/graphLinke_test/build_link_path.py to build the posts link graph. If you have a spark cluster, you can boost the computaion space via running ProgrammingAlpha/test/graphLinke_test/spark-graph.py; or you can run ProgrammingAlpha/test/graphLinke_test/extract_link_semi_path.py to build an incomplete graph for quick test.
-  </li>
-  <li>
-  Exract link distance posts pairs: run ProgrammingAlpha/test/graphLinke_test/build_label_pair.py to generate "link distance + posts ids(1+2)" data record, which is later used to generate inference task data.
-  </li>
-  </ul>
 
 <p><strong>Training Data for AnsAlpha</strong></p>
   <ul>
@@ -123,20 +105,9 @@ Prepare the training Data
   </li>
   </ul>
 
-<p><strong>Training Data for KnowAlpha</strong></p>
-  <ul>
-  <li>
-  Run ProgrammingAlpha/test/db_test/gen_corpus+_inference.py and push the generated corpus to mongodb cluster.
-  </li>
-  <li>
-  Run ProgrammingAlpha/test/db_test/gen_samples.py with task parameter as 'inference' to sample training and validating data.
-  </li>
-  <li>
-  Preprocess the generated samples by running ProgrammingAlpha/test/tokenizer_test/tokenize_corpus.py.
-  </li>
-  </ul>
 
-<p><strong>Build Knowledge Base</strong></p>
+
+<p><strong>Build Local Knowledge Base</strong></p>
   <ul>
   <li>
   Run ProgrammingAlpha/test/db_test/buildQAIndexer.py firstly to gather all answers to each question.
@@ -154,7 +125,7 @@ Prepare the training Data
 <h2><a id="user-content-q1-how-to-install-the-blizzard-tool" class="anchor" aria-hidden="true" href="#q1-how-to-install-the-blizzard-tool"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>
 Train Neural Network Models
 </h2>
-<p><strong>Build Text Generation Models</strong></p>
+<p><strong>Build Text Generation Models (e.g. AnswerNet)</strong></p>
 <ul>
 <li>
 Run ProgrammingAlpha/test/text_generation_test/build_copy_transformer.py to begin teacher forcing training of AnswerNet.
@@ -170,16 +141,6 @@ Other optional networks for text generation is also available in https://github.
 </li>
 </ul>
 
-<p><strong>Build Knowledge Inference Model
-</strong></p>
-<ul>
-<li>
-Run ProgrammingAlpha/test/retriever_test/build_linkprediction_model.py to train the Knowledge Inference Net.
-</li>
-<li>
-Other Inference Networks are available in https://github.com/asyml/texar/tree/master/examples/sentence_classifier and https://github.com/zhangzhenyu13/ATEC_NLP.
-</li>
-</ul>
 
 
 <h2><a id="user-content-query-file-format" class="anchor" aria-hidden="true" href="#query-file-format"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>
@@ -220,38 +181,20 @@ And the resuls are listed below.
 | total | 99 | 83 | 47 | 23 | 18 | 0.822 | 0.877 |
 
 
-<p><strong>Evaluate the KnowlAlpha</strong></p>
-<ul>
-<li>
-Sample 2000 solved questions via runining "ProgrammingAlpha/test/db_test/gen_samples.py --maxSize 2000 --task inference" to generate the test samples. 
-</li>
-<li>
-Run the ProgrammingAlpha/test/retriever_test/run_model.sh --do_eval to predict the link distance results directly, which is used to measure model performance on the test samples.
-</li>
-<li>
-Run the ProgrammingAlpha/test/retriever_test/interactive.py with input stream re-directed to a file containing post ids of test samples, which is the evaluation of KnowAlpha.
-</li>
-<li>
-1)Use the sklearn metrics toolkit to evaluate the model performance of Inference Net; 2) Refer to https://github.com/microsoft/recommenders for evaluation of the retrieved results of KnowAlpha. 
-</li>
-<li>
-Other Inference Networks can be found and used in https://github.com/asyml/texar/tree/master/examples/sentence_classifier and https://github.com/zhangzhenyu13/ATEC_NLP.
-</li>
-</ul>
 <p>..........................................................</p>
 
 
 <h2><a id="user-content-please-cite-our-work-as" class="anchor" aria-hidden="true" href="#please-cite-our-work-as"><svg class="octicon octicon-link" viewBox="0 0 16 16" version="1.1" width="16" height="16" aria-hidden="true"><path fill-rule="evenodd" d="M4 9h1v1H4c-1.5 0-3-1.69-3-3.5S2.55 3 4 3h4c1.45 0 3 1.69 3 3.5 0 1.41-.91 2.72-2 3.25V8.59c.58-.45 1-1.27 1-2.09C10 5.22 8.98 4 8 4H4c-.98 0-2 1.22-2 2.5S3 9 4 9zm9-3h-1v1h1c1 0 2 1.22 2 2.5S13.98 12 13 12H9c-.98 0-2-1.22-2-2.5 0-.83.42-1.64 1-2.09V6.25c-1.09.53-2 1.84-2 3.25C6 11.31 7.55 13 9 13h4c1.45 0 3-1.69 3-3.5S14.5 6 13 6z"></path></svg></a>
-Deploying ProgrammingAlpha 
+Deploying AnsAlpha
 </h2>
-<p>The AnsAlpha currently read the retrieved posts via IR methods to generate answers. We need to integrate the KnowAlpha and AnsAlpha so that AnsAlpha will read the recommended answering context from KnowAlpha. Therefore, we need to start two services: 1) KnowAlpha Service that can respond to an online query asking a question, which return the recommended answering context; 2) AnsAlpha Sercice that can respond to another online query containing the question and the recommened answering context, which shall return the generated answer to the question. <p>
+
 <p><strong>User Interface</strong></p>
 <ul>
 <li>
-We currently implemented a very simple answering context recommendation search box(for KnowAlpha), which is available in https://github.com/zhangzhenyu13/ProgrammingAlpha/tree/master/alphaservices.
+We currently implemented a very simple answering outlook asking box, which is available in https://github.com/zhangzhenyu13/ProgrammingAlpha/tree/master/alphaservices.
 </li>
 <li>
-The restful API for text-generation part(for AnsAlpha) can be started following instrcutions here http://forum.opennmt.net/t/simple-opennmt-py-rest-server/1392. 
+The restful API for text-generation network can be started following instrcutions here http://forum.opennmt.net/t/simple-opennmt-py-rest-server/1392. 
 </li>
 <li>
 The full one-shot deployment is under working now...
@@ -262,8 +205,8 @@ The full one-shot deployment is under working now...
 Please give a cite to our work if you want use the project somewhere else. 
 </h2>
 <pre><code>@INPROCEEDINGS{programmingAlpha, 
-author={Annonymous Authors}, 
-title={ProgrammingAlpha: An Automatic Question Answering AI System For Programmers},
+author={Zhenyu Zhang, Hailong Sun, HongyuZhang, PengboCai}, 
+title={AnsAlpha: Towards Automatic Answering of Developers’ Questions through Comprehension and Generation},
 year={2019},
 url={https://github.com/zhangzhenyu13/ProgrammingAlpha} 
 }
