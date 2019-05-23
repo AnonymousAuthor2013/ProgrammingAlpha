@@ -205,7 +205,7 @@ The full one-shot deployment is under working now...
 Please give a cite to our work if you want use the project somewhere else. 
 </h2>
 <pre><code>@INPROCEEDINGS{programmingAlpha, 
-author={Zhenyu Zhang, Hailong Sun, HongyuZhang, PengboCai}, 
+author={Anonymous Authors}, 
 title={AnsAlpha: Towards Automatic Answering of Developers’ Questions through Comprehension and Generation},
 year={2019},
 url={https://github.com/zhangzhenyu13/ProgrammingAlpha} 
